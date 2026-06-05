@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  password     String
+  signatureUrl String?
+  role         UserRole  @default(USER)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  quotations Quotation[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum BillingType {
+  MONTHLY
+  YEARLY
+}
+
+enum QuotationStatus {
+  DRAFT
+  GENERATED
+  APPROVED
+  EXPIRED
+}
+
+enum QuotationItemType {
+  PACKAGE
+  ADDON
+}
+
+model SupplierInfo {
+  id            String   @id @default(uuid())
+  companyName   String   @map("company_name")
+  companyNameTh String?  @map("company_name_th")
+  taxId         String   @map("tax_id")
+  address       String
+  phone         String
+  email         String
+  website       String?
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("supplier_info")
+}
+
+model Package {
+  id            String      @id @default(uuid())
+  name          String
+  nameTh        String?     @map("name_th")
+  description   String?
+  descriptionTh String?     @map("description_th")
+  billingType   BillingType @default(MONTHLY) @map("billing_type")
+  monthlyPrice  Decimal     @default(0) @map("monthly_price") @db.Decimal(12, 2)
+  yearlyPrice   Decimal     @default(0) @map("yearly_price") @db.Decimal(12, 2)
+  isActive      Boolean     @default(true) @map("is_active")
+  sortOrder     Int         @default(0) @map("sort_order")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  quotations Quotation[]
+
+  @@map("packages")
+}
+
+model SpecialOffer {
+  id            String   @id @default(uuid())
+  name          String
+  nameTh        String?  @map("name_th")
+  description   String?
+  descriptionTh String?  @map("description_th")
+  isActive      Boolean  @default(true) @map("is_active")
+  isDefault     Boolean  @default(false) @map("is_default")
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  quotationOffers QuotationSpecialOffer[]
+
+  @@map("special_offers")
+}
+
+model Quotation {
+  id               String           @id @default(uuid())
+  quotationNumber  String           @unique @map("quotation_number")
+  version          Int              @default(1)
+  status           QuotationStatus  @default(DRAFT)
+
+  customerCompany   String          @map("customer_company")
+  customerCompanyTh String?         @map("customer_company_th")
+  customerTaxId     String?         @map("customer_tax_id")
+  customerAddress   String?         @map("customer_address")
+
+  issuedDate  DateTime @map("issued_date")
+  validUntil  DateTime @map("valid_until")
+
+  packageId    String      @map("package_id")
+  billingType  BillingType @map("billing_type")
+
+  packageAmount Decimal @default(0) @map("package_amount") @db.Decimal(12, 2)
+  addonsAmount  Decimal @default(0) @map("addons_amount") @db.Decimal(12, 2)
+  discount      Decimal @default(0) @db.Decimal(12, 2)
+  subtotal      Decimal @default(0) @db.Decimal(12, 2)
+  vatEnabled    Boolean @default(false) @map("vat_enabled")
+  vatAmount     Decimal @default(0) @map("vat_amount") @db.Decimal(12, 2)
+  totalAmount   Decimal @default(0) @map("total_amount") @db.Decimal(12, 2)
+
+  driveFileId String? @map("drive_file_id")
+  driveUrl    String? @map("drive_url")
+  pdfFileSize String? @map("pdf_file_size")
+
+  signatureUrl String? @map("signature_url")
+
+  createdById String @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy    User                     @relation(fields: [createdById], references: [id])
+  package      Package                  @relation(fields: [packageId], references: [id])
+  items        QuotationItem[]
+  offerRecords QuotationSpecialOffer[]
+
+  @@map("quotations")
+}
+
+model QuotationItem {
+  id            String            @id @default(uuid())
+  quotationId   String            @map("quotation_id")
+  type          QuotationItemType @default(PACKAGE)
+  description   String
+  descriptionTh String?           @map("description_th")
+  qty           Int               @default(1)
+  unitPrice     Decimal           @default(0) @map("unit_price") @db.Decimal(12, 2)
+  amount        Decimal           @default(0) @db.Decimal(12, 2)
+  sortOrder     Int               @default(0) @map("sort_order")
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@map("quotation_items")
+}
+
+model QuotationSpecialOffer {
+  id              String  @id @default(uuid())
+  quotationId     String  @map("quotation_id")
+  specialOfferId  String? @map("special_offer_id")
+  name            String
+  nameTh          String? @map("name_th")
+  isCustom        Boolean @default(false) @map("is_custom")
+
+  quotation   Quotation     @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  specialOffer SpecialOffer? @relation(fields: [specialOfferId], references: [id])
+
+  @@map("quotation_special_offers")
+}

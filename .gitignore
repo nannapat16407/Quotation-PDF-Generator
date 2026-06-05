@@ -1,0 +1,27 @@
+# Reference files
+reference/
+
+# Documentation
+docs/
+
+# Upload files
+backend/uploads/
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+.next/
+
+# Environment variables
+.env
+
+# OS files
+.DS_Store
+
+# Logs
+*.log
+
+# Generated files
+src/generated/
