@@ -234,16 +234,25 @@ const s = StyleSheet.create({
   },
   offerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 4,
   },
   offerCheck: {
     fontSize: 8,
     color: colors.orange,
+    marginTop: 1,
+  },
+  offerTextWrap: {
+    flexDirection: 'column',
+    gap: 1,
   },
   offerText: {
     fontSize: 7.5,
     color: colors.gray,
+  },
+  offerTextTh: {
+    fontSize: 7,
+    color: '#9ca3af',
   },
 
   termsBox: {
@@ -489,10 +498,12 @@ export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
                   {data.offers.map((offer, i) => (
                     <View key={i} style={s.offerRow}>
                       <Text style={s.offerCheck}>✓</Text>
-                      <Text style={s.offerText}>
-                        {offer.name}
-                        {offer.nameTh ? ` / ${offer.nameTh}` : ''}
-                      </Text>
+                      <View style={s.offerTextWrap}>
+                        <Text style={s.offerText}>{offer.name}</Text>
+                        {offer.nameTh && (
+                          <Text style={s.offerTextTh}>{offer.nameTh}</Text>
+                        )}
+                      </View>
                     </View>
                   ))}
                 </View>

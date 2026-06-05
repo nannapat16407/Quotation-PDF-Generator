@@ -9,11 +9,19 @@ import { useQuotationActions } from '@/hooks/use-quotations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Pencil } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import type { Package, BillingType, QuotationItemType } from '@/types';
 
 interface ItemRow {
@@ -73,8 +81,48 @@ export default function CreateQuotationPage() {
   const [discount, setDiscount] = useState(0);
   const [vatEnabled, setVatEnabled] = useState(false);
 
+  // Validation
+  const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+
+  // Offer edit dialog
+  const [offerDialog, setOfferDialog] = useState<{
+    mode: 'add' | 'edit';
+    id: string;
+    name: string;
+    nameTh: string;
+    selected: boolean;
+  } | null>(null);
+  const [offerDialogErrors, setOfferDialogErrors] = useState<{ name?: boolean; nameTh?: boolean }>({});
+  const [deletingOfferId, setDeletingOfferId] = useState<string | null>(null);
+
   // Offers
-  const [offerSelections, setOfferSelections] = useState<OfferSelection[]>([]);
+  const [offerSelections, setOfferSelections] = useState<OfferSelection[]>([
+    {
+      id: 'default-migration',
+      specialOfferId: '',
+      name: 'Free Data Migration',
+      nameTh: 'นำเข้าข้อมูลฟรี',
+      selected: true,
+      isCustom: true,
+    },
+    {
+      id: 'default-support',
+      specialOfferId: '',
+      name: '24/7 Technical Support',
+      nameTh: 'สนับสนุนทางเทคนิคตลอด 24 ชั่วโมง',
+      selected: true,
+      isCustom: true,
+    },
+    {
+      id: 'default-unlimited',
+      specialOfferId: '',
+      name: 'Unlimited Users',
+      nameTh: 'ผู้ใช้งานไม่จำกัด',
+      selected: false,
+      isCustom: true,
+    },
+  ]);
 
   // Load next quotation number
   useEffect(() => {
@@ -99,6 +147,39 @@ export default function CreateQuotationPage() {
     }
   }, [availableOffers]);
 
+  // Package description generator
+  const generatePackageDescription = useCallback(
+    (pkg: Package, bt: BillingType) => {
+      const sub = bt === 'MONTHLY' ? 'Monthly Subscription' : 'Annual Subscription';
+      const subTh = bt === 'MONTHLY' ? 'สมาชิกรายเดือน' : 'สมาชิกรายปี';
+
+      const map: Record<string, { en: string; th: string }> = {
+        Starter: {
+          en: `Starter Package - 1 Organization User - ${sub}`,
+          th: `แพ็กเกจ Starter - ผู้ใช้องค์กร 1 ราย - ${subTh}`,
+        },
+        'Basic Account': {
+          en: `Basic Account Package - 2 Organization Users - ${sub}`,
+          th: `แพ็กเกจ Basic Account - ผู้ใช้องค์กร 2 ราย - ${subTh}`,
+        },
+        Advanced: {
+          en: `Advanced Package - 3 Organization Users - ${sub}`,
+          th: `แพ็กเกจ Advanced - ผู้ใช้องค์กร 3 ราย - ${subTh}`,
+        },
+        'Go Pro': {
+          en: `Go Pro Package - Unlimited Users - ${sub}`,
+          th: `แพ็กเกจ Go Pro - ผู้ใช้ไม่จำกัด - ${subTh}`,
+        },
+      };
+
+      return map[pkg.name] ?? {
+        en: `${pkg.name} Package - ${sub}`,
+        th: `แพ็กเกจ ${pkg.name} - ${subTh}`,
+      };
+    },
+    [],
+  );
+
   // Auto-set package item when package or billing type changes
   const updatePackageItem = useCallback(
     (pkg: Package | undefined, bt: BillingType, currentItems: ItemRow[]) => {
@@ -106,11 +187,12 @@ export default function CreateQuotationPage() {
       if (!pkg) return addons;
 
       const price = bt === 'MONTHLY' ? Number(pkg.monthlyPrice) : Number(pkg.yearlyPrice);
+      const desc = generatePackageDescription(pkg, bt);
       const pkgItem: ItemRow = {
         id: 'pkg-main',
         type: 'PACKAGE',
-        description: pkg.description || pkg.name,
-        descriptionTh: pkg.descriptionTh || pkg.nameTh || '',
+        description: desc.en,
+        descriptionTh: desc.th,
         qty: 1,
         unitPrice: price,
         amount: price,
@@ -118,20 +200,22 @@ export default function CreateQuotationPage() {
       };
       return [pkgItem, ...addons.map((a, i) => ({ ...a, sortOrder: i + 1 }))];
     },
-    [],
+    [generatePackageDescription],
   );
 
   const handleSelectPackage = (pkgId: string) => {
     setSelectedPackageId(pkgId);
+    if (attemptedSubmit) setValidationErrors((prev) => ({ ...prev, package: false }));
     const pkg = packages.find((p) => p.id === pkgId);
-    setBillingType(pkg?.billingType || 'MONTHLY');
-    setItems((prev) => updatePackageItem(pkg, pkg?.billingType || 'MONTHLY', prev));
+    setItems((prev) => updatePackageItem(pkg, billingType, prev));
   };
 
   const handleBillingTypeChange = (bt: BillingType) => {
     setBillingType(bt);
     const pkg = packages.find((p) => p.id === selectedPackageId);
-    setItems((prev) => updatePackageItem(pkg, bt, prev));
+    if (pkg) {
+      setItems((prev) => updatePackageItem(pkg, bt, prev));
+    }
   };
 
   // Addon management
@@ -155,7 +239,25 @@ export default function CreateQuotationPage() {
     });
   };
 
-  const updateAddon = (id: string, field: keyof ItemRow, value: any) => {
+  const updateItemQty = (id: string, rawValue: string) => {
+    if (rawValue === '') {
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, qty: 1, amount: 1 * item.unitPrice } : item,
+        ),
+      );
+      return;
+    }
+    const parsed = parseInt(rawValue, 10);
+    if (isNaN(parsed) || parsed < 1) return;
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, qty: parsed, amount: parsed * item.unitPrice } : item,
+      ),
+    );
+  };
+
+  const updateAddonField = (id: string, field: keyof ItemRow, value: any) => {
     setItems((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item;
@@ -184,15 +286,53 @@ export default function CreateQuotationPage() {
 
   const selectedPackage = packages.find((p) => p.id === selectedPackageId);
 
+  // Validation
+  const validateQuotation = useCallback(() => {
+    const errors: Record<string, boolean> = {};
+    if (!selectedPackageId) errors.package = true;
+    if (!customerCompany.trim()) errors.customerCompany = true;
+    if (!customerCompanyTh.trim()) errors.customerCompanyTh = true;
+    if (!customerTaxId.trim()) errors.customerTaxId = true;
+    if (!customerAddress.trim()) errors.customerAddress = true;
+    return errors;
+  }, [customerCompany, customerCompanyTh, customerTaxId, customerAddress, selectedPackageId]);
+
   const handleSubmit = async () => {
-    if (!selectedPackageId || !customerCompany) return;
+    const errors = validateQuotation();
+    setValidationErrors(errors);
+    setAttemptedSubmit(true);
+
+    if (Object.keys(errors).length > 0) {
+      if (errors.package) {
+        document.getElementById('package-selection')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        const firstField = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+          '[data-field="customerCompany"], [data-field="customerCompanyTh"], [data-field="customerTaxId"], [data-field="customerAddress"]',
+        );
+        if (firstField) firstField.focus();
+      }
+      return;
+    }
+
+    const trimmedOffers = offerSelections
+      .filter((o) => {
+        if (o.isCustom) return o.name.trim() && o.nameTh.trim();
+        return o.selected;
+      })
+      .map((o) => ({
+        specialOfferId: o.isCustom ? undefined : o.specialOfferId,
+        name: o.name.trim(),
+        nameTh: o.isCustom ? o.nameTh.trim() : (o.nameTh?.trim() || undefined),
+        isCustom: o.isCustom,
+      }));
+
     setSaving(true);
     try {
       await create({
-        customerCompany,
-        customerCompanyTh: customerCompanyTh || undefined,
-        customerTaxId: customerTaxId || undefined,
-        customerAddress: customerAddress || undefined,
+        customerCompany: customerCompany.trim(),
+        customerCompanyTh: customerCompanyTh.trim() || undefined,
+        customerTaxId: customerTaxId.trim() || undefined,
+        customerAddress: customerAddress.trim() || undefined,
         issuedDate,
         validUntil,
         packageId: selectedPackageId,
@@ -214,14 +354,7 @@ export default function CreateQuotationPage() {
           amount,
           sortOrder,
         })),
-        offers: offerSelections
-          .filter((o) => o.selected)
-          .map((o) => ({
-            specialOfferId: o.isCustom ? undefined : o.specialOfferId,
-            name: o.name,
-            nameTh: o.nameTh || undefined,
-            isCustom: o.isCustom,
-          })),
+        offers: trimmedOffers,
       });
       router.push('/quotations');
     } finally {
@@ -230,7 +363,7 @@ export default function CreateQuotationPage() {
   };
 
   const formatCurrency = (n: number) =>
-    `฿${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    `฿ ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -258,37 +391,76 @@ export default function CreateQuotationPage() {
             <div className="space-y-2">
               <Label>Company Name (EN) *</Label>
               <Input
+                data-field="customerCompany"
                 value={customerCompany}
-                onChange={(e) => setCustomerCompany(e.target.value)}
-                placeholder="Acme Corporation"
+                onChange={(e) => {
+                  setCustomerCompany(e.target.value);
+                  if (attemptedSubmit && e.target.value.trim()) {
+                    setValidationErrors((prev) => ({ ...prev, customerCompany: false }));
+                  }
+                }}
+                placeholder="SuperHR Co., Ltd."
+                className={validationErrors.customerCompany && attemptedSubmit ? 'border-destructive' : ''}
               />
+              {validationErrors.customerCompany && attemptedSubmit && (
+                <p className="text-xs text-destructive">Company Name (EN) is required</p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label>Company Name (TH)</Label>
+              <Label>Company Name (TH) *</Label>
               <Input
+                data-field="customerCompanyTh"
                 value={customerCompanyTh}
-                onChange={(e) => setCustomerCompanyTh(e.target.value)}
-                placeholder="บริษัท แอคมี จำกัด"
+                onChange={(e) => {
+                  setCustomerCompanyTh(e.target.value);
+                  if (attemptedSubmit && e.target.value.trim()) {
+                    setValidationErrors((prev) => ({ ...prev, customerCompanyTh: false }));
+                  }
+                }}
+                placeholder="บริษัท ซูเปอร์เอชอาร์ จำกัด"
+                className={validationErrors.customerCompanyTh && attemptedSubmit ? 'border-destructive' : ''}
               />
+              {validationErrors.customerCompanyTh && attemptedSubmit && (
+                <p className="text-xs text-destructive">Company Name (TH) is required</p>
+              )}
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Tax ID</Label>
-              <Input
-                value={customerTaxId}
-                onChange={(e) => setCustomerTaxId(e.target.value)}
-                placeholder="0105566158667"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Address</Label>
-              <Input
-                value={customerAddress}
-                onChange={(e) => setCustomerAddress(e.target.value)}
-                placeholder="123 ถนนสุขุมวิท..."
-              />
-            </div>
+          <div className="space-y-2">
+            <Label>Tax ID *</Label>
+            <Input
+              data-field="customerTaxId"
+              value={customerTaxId}
+              onChange={(e) => {
+                setCustomerTaxId(e.target.value);
+                if (attemptedSubmit && e.target.value.trim()) {
+                  setValidationErrors((prev) => ({ ...prev, customerTaxId: false }));
+                }
+              }}
+              placeholder="0105551234567"
+              className={validationErrors.customerTaxId && attemptedSubmit ? 'border-destructive' : ''}
+            />
+            {validationErrors.customerTaxId && attemptedSubmit && (
+              <p className="text-xs text-destructive">Tax ID is required</p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label>Address *</Label>
+            <Textarea
+              data-field="customerAddress"
+              value={customerAddress}
+              onChange={(e) => {
+                setCustomerAddress(e.target.value);
+                if (attemptedSubmit && e.target.value.trim()) {
+                  setValidationErrors((prev) => ({ ...prev, customerAddress: false }));
+                }
+              }}
+              placeholder="123 ถนนสุขุมวิท แขวงคลองตัน เขตคลองเตย กรุงเทพมหานคร 10110"
+              className={validationErrors.customerAddress && attemptedSubmit ? 'border-destructive' : ''}
+              rows={2}
+            />
+            {validationErrors.customerAddress && attemptedSubmit && (
+              <p className="text-xs text-destructive">Address is required</p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -321,67 +493,78 @@ export default function CreateQuotationPage() {
       </Card>
 
       {/* Package Selection */}
-      <Card>
+      <Card id="package-selection" className={validationErrors.package && attemptedSubmit ? 'border-destructive' : ''}>
         <CardHeader>
           <CardTitle>Package Selection</CardTitle>
           <CardDescription>Select a package and billing period</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <CardContent className="space-y-6">
+          {validationErrors.package && attemptedSubmit && (
+            <p className="text-sm text-destructive font-medium">Please select a package.</p>
+          )}
+          {/* Billing Period Toggle */}
+          <div className="flex justify-center">
+            <div className="inline-flex rounded-lg border border-border bg-muted/50 p-1">
+              {(['MONTHLY', 'YEARLY'] as BillingType[]).map((bt) => (
+                <button
+                  key={bt}
+                  type="button"
+                  onClick={() => handleBillingTypeChange(bt)}
+                  className={`px-6 py-2 text-sm font-medium rounded-md transition-all ${
+                    billingType === bt
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {bt === 'MONTHLY' ? 'Monthly' : 'Yearly'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Package Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             {packages
               .filter((p) => p.isActive)
               .sort((a, b) => a.sortOrder - b.sortOrder)
-              .map((pkg) => (
-                <button
-                  key={pkg.id}
-                  type="button"
-                  onClick={() => handleSelectPackage(pkg.id)}
-                  className={`rounded-xl border-2 p-4 text-left transition-all ${
-                    selectedPackageId === pkg.id
-                      ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
-                      : 'border-border hover:border-primary/40'
-                  }`}
-                >
-                  <p className="font-semibold text-sm">{pkg.name}</p>
-                  {pkg.nameTh && (
-                    <p className="text-xs text-muted-foreground">{pkg.nameTh}</p>
-                  )}
-                  <div className="mt-2 space-y-0.5">
-                    <p className="text-xs text-muted-foreground">Monthly</p>
-                    <p className="font-bold">
-                      ฿{Number(pkg.monthlyPrice).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">Yearly</p>
-                    <p className="font-bold">
-                      ฿{Number(pkg.yearlyPrice).toLocaleString()}
-                    </p>
-                  </div>
-                </button>
-              ))}
-          </div>
+              .map((pkg) => {
+                const isSelected = selectedPackageId === pkg.id;
+                const price =
+                  billingType === 'MONTHLY'
+                    ? Number(pkg.monthlyPrice)
+                    : Number(pkg.yearlyPrice);
+                const period = billingType === 'MONTHLY' ? 'month' : 'year';
 
-          {selectedPackage && (
-            <div className="space-y-2">
-              <Label>Billing Period</Label>
-              <div className="flex gap-2">
-                {(['MONTHLY', 'YEARLY'] as BillingType[]).map((bt) => (
-                  <Button
-                    key={bt}
-                    variant={billingType === bt ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => handleBillingTypeChange(bt)}
+                return (
+                  <button
+                    key={pkg.id}
+                    type="button"
+                    onClick={() => handleSelectPackage(pkg.id)}
+                    className={`relative rounded-xl border-2 p-5 text-center transition-all ${
+                      isSelected
+                        ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-md'
+                        : 'border-border hover:border-primary/40 hover:shadow-sm'
+                    }`}
                   >
-                    {bt === 'MONTHLY' ? 'Monthly' : 'Yearly'} —{' '}
-                    {formatCurrency(
-                      bt === 'MONTHLY'
-                        ? Number(selectedPackage.monthlyPrice)
-                        : Number(selectedPackage.yearlyPrice),
+                    {isSelected && (
+                      <div className="absolute -top-2.5 left-1/2 -translate-x-1/2">
+                        <Badge className="text-[10px] px-2 py-0.5">Selected</Badge>
+                      </div>
                     )}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
+                    <p className="font-semibold text-base">{pkg.name}</p>
+                    <div className="mt-3">
+                      <p className="text-2xl font-bold">
+                        {price.toLocaleString()}
+                        <span className="text-sm font-normal text-muted-foreground">
+                          {' '}
+                          THB / {period}
+                        </span>
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+          </div>
         </CardContent>
       </Card>
 
@@ -410,40 +593,50 @@ export default function CreateQuotationPage() {
                 {items.map((item) => (
                   <tr key={item.id}>
                     <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="text-xs shrink-0">
+                      <div className="flex items-start gap-2">
+                        <Badge variant="secondary" className="text-xs shrink-0 mt-0.5">
                           {item.type}
                         </Badge>
                         {item.type === 'PACKAGE' ? (
-                          <span className="text-muted-foreground">
-                            {item.description}
-                          </span>
+                          <div className="min-w-0">
+                            <p className="text-sm text-foreground">{item.description}</p>
+                            {item.descriptionTh && (
+                              <p className="text-xs text-muted-foreground">{item.descriptionTh}</p>
+                            )}
+                          </div>
                         ) : (
-                          <Input
-                            value={item.description}
-                            onChange={(e) =>
-                              updateAddon(item.id, 'description', e.target.value)
-                            }
-                            placeholder="Add-on description"
-                            className="h-7 text-sm border-0 shadow-none px-0 focus-visible:ring-0"
-                          />
+                          <div className="flex-1 space-y-1">
+                            <Input
+                              value={item.description}
+                              onChange={(e) =>
+                                updateAddonField(item.id, 'description', e.target.value)
+                              }
+                              placeholder="Description (English)"
+                              className="h-7 text-sm border-0 shadow-none px-0 focus-visible:ring-0"
+                            />
+                            <Input
+                              value={item.descriptionTh}
+                              onChange={(e) =>
+                                updateAddonField(item.id, 'descriptionTh', e.target.value)
+                              }
+                              placeholder="Description (Thai)"
+                              className="h-7 text-xs text-muted-foreground border-0 shadow-none px-0 focus-visible:ring-0"
+                            />
+                          </div>
                         )}
                       </div>
                     </td>
                     <td className="px-3 py-2">
-                      {item.type === 'PACKAGE' ? (
-                        <span className="text-center block">{item.qty}</span>
-                      ) : (
-                        <Input
-                          type="number"
-                          value={item.qty}
-                          onChange={(e) =>
-                            updateAddon(item.id, 'qty', Number(e.target.value))
-                          }
-                          className="h-7 text-sm text-center"
-                          min={1}
-                        />
-                      )}
+                      <Input
+                        type="number"
+                        value={item.qty}
+                        onChange={(e) =>
+                          updateItemQty(item.id, e.target.value)
+                        }
+                        className="h-7 text-sm text-center"
+                        min={1}
+                        step={1}
+                      />
                     </td>
                     <td className="px-3 py-2">
                       {item.type === 'PACKAGE' ? (
@@ -455,7 +648,7 @@ export default function CreateQuotationPage() {
                           type="number"
                           value={item.unitPrice}
                           onChange={(e) =>
-                            updateAddon(
+                            updateAddonField(
                               item.id,
                               'unitPrice',
                               Number(e.target.value),
@@ -496,13 +689,12 @@ export default function CreateQuotationPage() {
       <Card>
         <CardHeader>
           <CardTitle>Special Offers</CardTitle>
-          <CardDescription>Select offers to include in this quotation</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-1">
           {offerSelections.map((offer) => (
-            <label
+            <div
               key={offer.id}
-              className="flex items-center gap-3 rounded-lg border border-border p-3 cursor-pointer hover:bg-muted/30 transition-colors"
+              className="group flex items-start gap-3 py-3 rounded-md hover:bg-muted/30 transition-colors"
             >
               <input
                 type="checkbox"
@@ -514,18 +706,197 @@ export default function CreateQuotationPage() {
                     ),
                   )
                 }
-                className="size-4 rounded border-border"
+                className="mt-1 size-5 rounded border-border accent-primary cursor-pointer shrink-0"
               />
-              <div className="flex-1">
-                <p className="text-sm font-medium">{offer.name}</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold leading-snug">{offer.name}</p>
                 {offer.nameTh && (
-                  <p className="text-xs text-muted-foreground">{offer.nameTh}</p>
+                  <p className="text-sm text-muted-foreground font-medium mt-0.5">
+                    {offer.nameTh}
+                  </p>
                 )}
               </div>
-            </label>
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => {
+                    setOfferDialogErrors({});
+                    setOfferDialog({
+                      mode: 'edit',
+                      id: offer.id,
+                      name: offer.name,
+                      nameTh: offer.nameTh,
+                      selected: offer.selected,
+                    });
+                  }}
+                >
+                  <Pencil className="size-3.5 text-muted-foreground" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => setDeletingOfferId(offer.id)}
+                >
+                  <Trash2 className="size-3.5 text-muted-foreground" />
+                </Button>
+              </div>
+            </div>
           ))}
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={() => {
+              setOfferDialogErrors({});
+              setOfferDialog({
+                mode: 'add',
+                id: `custom-${Date.now()}`,
+                name: '',
+                nameTh: '',
+                selected: false,
+              });
+            }}
+          >
+            <Plus className="size-3.5 mr-1" />
+            Add Offer
+          </Button>
         </CardContent>
       </Card>
+
+      {/* Offer Add/Edit Dialog */}
+      <Dialog
+        open={!!offerDialog}
+        onOpenChange={(open) => { if (!open) setOfferDialog(null); }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {offerDialog?.mode === 'edit' ? 'Edit Special Offer' : 'Add Special Offer'}
+            </DialogTitle>
+          </DialogHeader>
+          {offerDialog && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Offer (English) *</Label>
+                <Input
+                  value={offerDialog.name}
+                  onChange={(e) => {
+                    setOfferDialog({ ...offerDialog, name: e.target.value });
+                    if (e.target.value.trim()) setOfferDialogErrors((p) => ({ ...p, name: false }));
+                  }}
+                  placeholder="Free Data Migration"
+                  className={offerDialogErrors.name ? 'border-destructive' : ''}
+                />
+                {offerDialogErrors.name && (
+                  <p className="text-xs text-destructive">Offer (English) is required</p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label>Offer (Thai) *</Label>
+                <Input
+                  value={offerDialog.nameTh}
+                  onChange={(e) => {
+                    setOfferDialog({ ...offerDialog, nameTh: e.target.value });
+                    if (e.target.value.trim()) setOfferDialogErrors((p) => ({ ...p, nameTh: false }));
+                  }}
+                  placeholder="นำเข้าข้อมูลฟรี"
+                  className={offerDialogErrors.nameTh ? 'border-destructive' : ''}
+                />
+                {offerDialogErrors.nameTh && (
+                  <p className="text-xs text-destructive">Offer (Thai) is required</p>
+                )}
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={offerDialog.selected}
+                  onChange={(e) =>
+                    setOfferDialog({ ...offerDialog, selected: e.target.checked })
+                  }
+                  className="size-4 rounded border-border accent-primary"
+                />
+                <span className="text-sm">Selected by default</span>
+              </label>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOfferDialog(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!offerDialog) return;
+                const errors: { name?: boolean; nameTh?: boolean } = {};
+                if (!offerDialog.name.trim()) errors.name = true;
+                if (!offerDialog.nameTh.trim()) errors.nameTh = true;
+                if (errors.name || errors.nameTh) {
+                  setOfferDialogErrors(errors);
+                  return;
+                }
+                if (offerDialog.mode === 'add') {
+                  setOfferSelections((prev) => [
+                    ...prev,
+                    {
+                      id: offerDialog.id,
+                      specialOfferId: '',
+                      name: offerDialog.name.trim(),
+                      nameTh: offerDialog.nameTh.trim(),
+                      selected: offerDialog.selected,
+                      isCustom: true,
+                    },
+                  ]);
+                } else {
+                  setOfferSelections((prev) =>
+                    prev.map((o) =>
+                      o.id === offerDialog.id
+                        ? {
+                            ...o,
+                            name: offerDialog.name.trim(),
+                            nameTh: offerDialog.nameTh.trim(),
+                            selected: offerDialog.selected,
+                          }
+                        : o,
+                    ),
+                  );
+                }
+                setOfferDialog(null);
+              }}
+            >
+              Save Offer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Offer Confirmation */}
+      <Dialog
+        open={!!deletingOfferId}
+        onOpenChange={(open) => { if (!open) setDeletingOfferId(null); }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete this special offer?</DialogTitle>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setDeletingOfferId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deletingOfferId) {
+                  setOfferSelections((prev) => prev.filter((o) => o.id !== deletingOfferId));
+                }
+                setDeletingOfferId(null);
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Financial Summary */}
       <Card>
@@ -577,10 +948,7 @@ export default function CreateQuotationPage() {
         <Button variant="outline" onClick={() => router.push('/quotations')}>
           Cancel
         </Button>
-        <Button
-          onClick={handleSubmit}
-          disabled={saving || !selectedPackageId || !customerCompany}
-        >
+        <Button onClick={handleSubmit} disabled={saving}>
           {saving ? 'Creating...' : 'Create Quotation'}
         </Button>
       </div>
