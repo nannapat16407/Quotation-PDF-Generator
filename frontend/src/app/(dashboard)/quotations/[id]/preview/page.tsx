@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuotation } from '@/hooks/use-quotations';
 import api from '@/lib/api';
@@ -23,6 +23,7 @@ import {
   ExternalLink,
   FileText,
   Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import type { QuotationStatus } from '@/types';
 
@@ -44,6 +45,33 @@ export default function PreviewQuotationPage({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState(false);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+
+    const fetchPdf = async () => {
+      try {
+        const response = await api.get(`/quotations/${id}/pdf`, {
+          responseType: 'blob',
+        });
+        objectUrl = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+        setPdfUrl(objectUrl);
+        setPdfError(false);
+      } catch {
+        setPdfError(true);
+      }
+    };
+
+    fetchPdf();
+
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [id]);
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -56,8 +84,18 @@ export default function PreviewQuotationPage({
     }
   };
 
-  const viewPdf = () => {
-    window.open(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/quotations/${id}/pdf`, '_blank');
+  const viewPdf = async () => {
+    try {
+      const response = await api.get(`/quotations/${id}/pdf`, {
+        responseType: 'blob',
+      });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+      // handled by iframe error state
+    }
   };
 
   const downloadPdf = async () => {
@@ -152,11 +190,25 @@ export default function PreviewQuotationPage({
       {/* PDF Embed */}
       <Card>
         <CardContent className="p-0 overflow-hidden rounded-lg" style={{ height: '600px' }}>
-          <iframe
-            src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'}/quotations/${id}/pdf`}
-            className="w-full h-full border-0"
-            title={`Quotation ${quotation.quotationNumber}`}
-          />
+          {pdfError ? (
+            <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+              <AlertCircle className="size-10" />
+              <p className="text-sm font-medium">Unable to load PDF preview.</p>
+              <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+                Retry
+              </Button>
+            </div>
+          ) : pdfUrl ? (
+            <iframe
+              src={pdfUrl}
+              className="w-full h-full border-0"
+              title={`Quotation ${quotation.quotationNumber}`}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full">
+              <div className="size-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            </div>
+          )}
         </CardContent>
       </Card>
 

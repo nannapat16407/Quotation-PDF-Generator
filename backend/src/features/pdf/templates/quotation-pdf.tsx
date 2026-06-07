@@ -4,6 +4,7 @@ import {
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
   Font,
 } from '@react-pdf/renderer';
@@ -68,19 +69,27 @@ export interface QuotationPdfData {
 
 const s = StyleSheet.create({
   page: {
-    fontFamily: 'Inter',
+    fontFamily: 'Sarabun',
     fontSize: 9,
     color: colors.black,
     backgroundColor: colors.white,
     padding: 0,
   },
+
+  contentWrap: {
+    flex: 1,
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    paddingBottom: 30,
+  },
+
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 28,
-    paddingTop: 24,
-    paddingBottom: 12,
+    paddingTop: 30,
+    paddingBottom: 16,
   },
   headerTitle: {
     fontSize: 20,
@@ -92,26 +101,14 @@ const s = StyleSheet.create({
     color: colors.gray,
   },
   headerBrand: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  brandText: {
-    fontSize: 18,
-    fontWeight: 300,
-    color: colors.primary,
-    letterSpacing: 3,
-  },
-  brandHex: {
-    fontSize: 22,
-    color: colors.primary,
-    fontWeight: 700,
+    height: 32,
+    width: 120,
   },
 
   infoGrid: {
     flexDirection: 'row',
     paddingHorizontal: 28,
-    paddingBottom: 12,
+    paddingBottom: 18,
     gap: 10,
   },
   infoCol: {
@@ -158,13 +155,13 @@ const s = StyleSheet.create({
 
   heroBanner: {
     marginHorizontal: 28,
-    marginBottom: 12,
+    marginBottom: 18,
     backgroundColor: colors.primary,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 10,
   },
   heroPackage: {
     color: colors.white,
@@ -178,7 +175,7 @@ const s = StyleSheet.create({
 
   table: {
     marginHorizontal: 28,
-    marginBottom: 10,
+    marginBottom: 16,
   },
   tableHeader: {
     flexDirection: 'row',
@@ -193,7 +190,7 @@ const s = StyleSheet.create({
   tableRow: {
     flexDirection: 'row',
     paddingHorizontal: 8,
-    paddingVertical: 5,
+    paddingVertical: 7,
     borderBottomWidth: 0.5,
     borderBottomColor: '#e5e7eb',
   },
@@ -208,10 +205,10 @@ const s = StyleSheet.create({
   bottomGrid: {
     flexDirection: 'row',
     paddingHorizontal: 28,
-    gap: 14,
-    marginBottom: 10,
+    gap: 16,
+    marginBottom: 16,
   },
-  bottomLeft: { flex: 1, gap: 8 },
+  bottomLeft: { flex: 1, gap: 10 },
   bottomRight: { width: 180 },
 
   offersBox: {
@@ -223,14 +220,14 @@ const s = StyleSheet.create({
   offersHeader: {
     backgroundColor: '#e4e1ee',
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     fontSize: 7,
     fontWeight: 600,
   },
   offersBody: {
     paddingHorizontal: 8,
-    paddingVertical: 5,
-    gap: 3,
+    paddingVertical: 8,
+    gap: 5,
   },
   offerRow: {
     flexDirection: 'row',
@@ -265,19 +262,19 @@ const s = StyleSheet.create({
   termsHeader: {
     backgroundColor: '#fef3c7',
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     fontSize: 7,
     fontWeight: 600,
   },
   termsBody: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    gap: 2,
+    paddingVertical: 7,
+    gap: 4,
   },
   termText: {
     fontSize: 7,
     color: colors.gray,
-    paddingLeft: 8,
+    paddingLeft: 10,
   },
 
   summaryBox: {
@@ -319,7 +316,8 @@ const s = StyleSheet.create({
   signatureRow: {
     flexDirection: 'row',
     paddingHorizontal: 28,
-    paddingTop: 16,
+    paddingTop: 20,
+    paddingBottom: 8,
     gap: 40,
   },
   signatureCol: {
@@ -327,9 +325,15 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   signatureArea: {
-    height: 40,
+    height: 65,
     justifyContent: 'flex-end',
     alignItems: 'center',
+    marginBottom: 4,
+  },
+  signatureImage: {
+    width: 150,
+    maxHeight: 55,
+    objectFit: 'contain',
   },
   signatureLine: {
     width: '100%',
@@ -350,7 +354,7 @@ const s = StyleSheet.create({
 
   pageFooter: {
     position: 'absolute',
-    bottom: 14,
+    bottom: 12,
     left: 0,
     right: 0,
     textAlign: 'center',
@@ -376,226 +380,233 @@ const formatDate = (d: string) => {
   return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 };
 
-export function QuotationPdfDocument({ data }: { data: QuotationPdfData }) {
+const FOOTER_TEXT = 'Super HR Co., Ltd. | 287 Silom Rd, Silom, Bang Rak, Bangkok 10500 | cs@superhr.biz | www.superhr.biz | 02-077-7581';
+
+export function QuotationPdfDocument({ data, logoSrc }: { data: QuotationPdfData; logoSrc?: string | null }) {
   return (
     <Document>
       <Page size="A4" style={s.page}>
-        {/* Header */}
-        <View style={s.headerRow}>
+        <View style={s.contentWrap}>
+          {/* Top content group — pushed to top by space-between */}
           <View>
-            <Text style={s.headerTitle}>
-              Quotation <Text style={s.headerSub}>/ ใบเสนอราคา</Text>
-            </Text>
-          </View>
-          <View style={s.headerBrand}>
-            <Text style={s.brandHex}>⬡</Text>
-            <Text style={s.brandText}>SUPERHR</Text>
-          </View>
-        </View>
-
-        {/* Three-column info section */}
-        <View style={s.infoGrid}>
-          {/* Supplier */}
-          <View style={s.infoCol}>
-            <View style={s.infoLabel}>
-              <Text>SUPPLIER / ผู้เสนอราคา</Text>
-            </View>
-            <Text style={s.infoName}>{data.supplier.companyName}</Text>
-            {data.supplier.companyNameTh && (
-              <Text style={s.infoDetail}>{data.supplier.companyNameTh}</Text>
-            )}
-            <Text style={s.infoDetail}>เลขประจำตัวผู้เสียภาษี: {data.supplier.taxId}</Text>
-            <Text style={s.infoDetail}>{data.supplier.address}</Text>
-          </View>
-
-          {/* Prepared For */}
-          <View style={s.infoCol}>
-            <View style={s.infoLabel}>
-              <Text>PREPARED FOR / เสนอแก่</Text>
-            </View>
-            <Text style={s.infoName}>{data.customer.companyName}</Text>
-            {data.customer.companyNameTh && (
-              <Text style={s.infoDetail}>{data.customer.companyNameTh}</Text>
-            )}
-            {data.customer.taxId && (
-              <Text style={s.infoDetail}>เลขประจำตัวผู้เสียภาษี: {data.customer.taxId}</Text>
-            )}
-            {data.customer.address && (
-              <Text style={s.infoDetail}>{data.customer.address}</Text>
-            )}
-          </View>
-
-          {/* Document Info */}
-          <View style={s.infoCol}>
-            <View style={s.infoLabel}>
-              <Text>DOCUMENT INFO / ข้อมูลเอกสาร</Text>
-            </View>
-            <View style={s.docInfoGrid}>
-              <View style={s.docRow}>
-                <Text style={s.docLabel}>Quo. No.</Text>
-                <Text style={s.docValue}>{data.quotationNumber}</Text>
+            {/* Header */}
+            <View style={s.headerRow}>
+              <View>
+                <Text style={s.headerTitle}>
+                  Quotation <Text style={s.headerSub}>/ ใบเสนอราคา</Text>
+                </Text>
               </View>
-              <View style={s.docRow}>
-                <Text style={s.docLabel}>Issued</Text>
-                <Text style={s.docValue}>{formatDate(data.issuedDate)}</Text>
-              </View>
-              <View style={s.docRow}>
-                <Text style={s.docLabel}>Valid Until</Text>
-                <Text style={s.docValue}>{formatDate(data.validUntil)}</Text>
-              </View>
+              {logoSrc ? (
+                <Image src={logoSrc} style={s.headerBrand} />
+              ) : (
+                <View style={s.headerBrand}>
+                  <Text style={{ fontSize: 18, fontWeight: 300, color: colors.primary, letterSpacing: 3 }}>
+                    SUPERHR
+                  </Text>
+                </View>
+              )}
             </View>
-          </View>
-        </View>
 
-        {/* Hero Banner */}
-        <View style={s.heroBanner}>
-          <Text style={s.heroPackage}>
-            {data.package.name} ฿ {fmt(data.package.price)} /{' '}
-            {data.package.billingType === 'YEARLY' ? 'Year' : 'Month'}
-          </Text>
-          <Text style={s.heroDue}>
-            Due / ชำระภายใน {data.package.dueDate}
-          </Text>
-        </View>
+            {/* Three-column info section */}
+            <View style={s.infoGrid}>
+              {/* Supplier */}
+              <View style={s.infoCol}>
+                <View style={s.infoLabel}>
+                  <Text>SUPPLIER / ผู้เสนอราคา</Text>
+                </View>
+                <Text style={s.infoName}>{data.supplier.companyName}</Text>
+                {data.supplier.companyNameTh && (
+                  <Text style={s.infoDetail}>{data.supplier.companyNameTh}</Text>
+                )}
+                <Text style={s.infoDetail}>เลขประจำตัวผู้เสียภาษี: {data.supplier.taxId}</Text>
+                <Text style={s.infoDetail}>{data.supplier.address}</Text>
+              </View>
 
-        {/* Item Table */}
-        <View style={s.table}>
-          <View style={s.tableHeader}>
-            <Text style={s.thDesc}>Description / รายละเอียด</Text>
-            <Text style={s.thQty}>Qty</Text>
-            <Text style={s.thPrice}>Unit Price / ราคา</Text>
-            <Text style={s.thAmount}>Amount / รวม</Text>
-          </View>
-          {data.items.map((item, i) => (
-            <View key={i} style={s.tableRow}>
-              <View style={s.tdDesc}>
-                <Text style={s.tdDescEn}>{item.description}</Text>
-                {item.descriptionTh && (
-                  <Text style={s.tdDescTh}>{item.descriptionTh}</Text>
+              {/* Prepared For */}
+              <View style={s.infoCol}>
+                <View style={s.infoLabel}>
+                  <Text>PREPARED FOR / เสนอแก่</Text>
+                </View>
+                <Text style={s.infoName}>{data.customer.companyName}</Text>
+                {data.customer.companyNameTh && (
+                  <Text style={s.infoDetail}>{data.customer.companyNameTh}</Text>
+                )}
+                {data.customer.taxId && (
+                  <Text style={s.infoDetail}>เลขประจำตัวผู้เสียภาษี: {data.customer.taxId}</Text>
+                )}
+                {data.customer.address && (
+                  <Text style={s.infoDetail}>{data.customer.address}</Text>
                 )}
               </View>
-              <Text style={s.tdQty}>{item.qty}</Text>
-              <Text style={item.unitPrice === 0 ? [s.tdPrice, s.tdFree] : s.tdPrice}>
-                {fmt(item.unitPrice)}
+
+              {/* Document Info */}
+              <View style={s.infoCol}>
+                <View style={s.infoLabel}>
+                  <Text>DOCUMENT INFO / ข้อมูลเอกสาร</Text>
+                </View>
+                <View style={s.docInfoGrid}>
+                  <View style={s.docRow}>
+                    <Text style={s.docLabel}>Quo. No.</Text>
+                    <Text style={s.docValue}>{data.quotationNumber}</Text>
+                  </View>
+                  <View style={s.docRow}>
+                    <Text style={s.docLabel}>Issued</Text>
+                    <Text style={s.docValue}>{formatDate(data.issuedDate)}</Text>
+                  </View>
+                  <View style={s.docRow}>
+                    <Text style={s.docLabel}>Valid Until</Text>
+                    <Text style={s.docValue}>{formatDate(data.validUntil)}</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* Hero Banner */}
+            <View style={s.heroBanner}>
+              <Text style={s.heroPackage}>
+                {data.package.name} ฿ {fmt(data.package.price)} /{' '}
+                {data.package.billingType === 'YEARLY' ? 'Year' : 'Month'}
               </Text>
-              <Text style={item.amount === 0 ? [s.tdAmount, s.tdFree] : s.tdAmount}>
-                {fmt(item.amount)}
+              <Text style={s.heroDue}>
+                Due / ชำระภายใน {data.package.dueDate}
               </Text>
             </View>
-          ))}
-        </View>
 
-        {/* Bottom: Offers + Terms | Financial Summary */}
-        <View style={s.bottomGrid}>
-          <View style={s.bottomLeft}>
-            {/* Special Offers */}
-            {data.offers.length > 0 && (
-              <View style={s.offersBox}>
-                <View style={s.offersHeader}>
-                  <Text>Special Offers Included / ข้อเสนอพิเศษที่รวมอยู่</Text>
-                </View>
-                <View style={s.offersBody}>
-                  {data.offers.map((offer, i) => (
-                    <View key={i} style={s.offerRow}>
-                      <Text style={s.offerCheck}>✓</Text>
-                      <View style={s.offerTextWrap}>
-                        <Text style={s.offerText}>{offer.name}</Text>
-                        {offer.nameTh && (
-                          <Text style={s.offerTextTh}>{offer.nameTh}</Text>
-                        )}
-                      </View>
-                    </View>
-                  ))}
-                </View>
+            {/* Item Table */}
+            <View style={s.table}>
+              <View style={s.tableHeader}>
+                <Text style={s.thDesc}>Description / รายละเอียด</Text>
+                <Text style={s.thQty}>Qty</Text>
+                <Text style={s.thPrice}>Unit Price / ราคา</Text>
+                <Text style={s.thAmount}>Amount / รวม</Text>
               </View>
-            )}
-
-            {/* Payment Terms */}
-            <View style={s.termsBox}>
-              <View style={s.termsHeader}>
-                <Text>Payment Terms / เงื่อนไขการชำระเงิน</Text>
-              </View>
-              <View style={s.termsBody}>
-                {paymentTerms.map((t, i) => (
-                  <Text key={i} style={s.termText}>
-                    • {t}
+              {data.items.map((item, i) => (
+                <View key={i} style={s.tableRow}>
+                  <View style={s.tdDesc}>
+                    <Text style={s.tdDescEn}>{item.description}</Text>
+                    {item.descriptionTh && (
+                      <Text style={s.tdDescTh}>{item.descriptionTh}</Text>
+                    )}
+                  </View>
+                  <Text style={s.tdQty}>{item.qty}</Text>
+                  <Text style={item.unitPrice === 0 ? [s.tdPrice, s.tdFree] : s.tdPrice}>
+                    {fmt(item.unitPrice)}
                   </Text>
-                ))}
-              </View>
-            </View>
-          </View>
-
-          {/* Financial Summary */}
-          <View style={s.bottomRight}>
-            <View style={s.summaryBox}>
-              <View style={s.summaryRow}>
-                <Text>Pro Package</Text>
-                <Text>{fmt(data.packageAmount)}</Text>
-              </View>
-              <View style={s.summaryRow}>
-                <Text>Add-ons</Text>
-                <Text>{fmt(data.addonsAmount)}</Text>
-              </View>
-              {data.discount > 0 && (
-                <View style={s.summaryRowOrange}>
-                  <Text>Discount</Text>
-                  <Text>{fmt(data.discount)}</Text>
+                  <Text style={item.amount === 0 ? [s.tdAmount, s.tdFree] : s.tdAmount}>
+                    {fmt(item.amount)}
+                  </Text>
                 </View>
-              )}
-              <View style={s.summaryRow}>
-                <Text style={{ fontWeight: 600 }}>Subtotal</Text>
-                <Text style={{ fontWeight: 600 }}>{fmt(data.subtotal)}</Text>
-              </View>
-              <View style={s.summaryRow}>
-                <Text>VAT 7%</Text>
-                <Text>{data.vatEnabled ? fmt(data.vatAmount) : '0'}</Text>
-              </View>
-              <View style={s.summaryTotal}>
-                <Text style={{ fontWeight: 700 }}>Total Amount Due</Text>
-                <Text style={{ fontWeight: 700, fontSize: 11 }}>{fmt(data.totalAmount)}</Text>
-              </View>
+              ))}
             </View>
-          </View>
-        </View>
 
-        {/* Signature Footer */}
-        <View style={s.signatureRow}>
-          <View style={s.signatureCol}>
-            <View style={s.signatureArea}>
-              {data.signatureUrl && (
-                <Text style={{ fontSize: 20, color: colors.primary, fontFamily: 'Inter' }}>
-                  [Signature]
-                </Text>
-              )}
-            </View>
-            <View style={s.signatureLine}>
-              <Text style={s.signatureLabel}>
-                Authorised by / {data.supplier.companyName}
-              </Text>
-              <Text style={s.signatureSublabel}>
-                ผู้มีอำนาจลงนาม / {data.supplier.companyNameTh || data.supplier.companyName}
-              </Text>
+            {/* Bottom: Offers + Terms | Financial Summary */}
+            <View style={s.bottomGrid}>
+              <View style={s.bottomLeft}>
+                {/* Special Offers */}
+                {data.offers.length > 0 && (
+                  <View style={s.offersBox}>
+                    <View style={s.offersHeader}>
+                      <Text>Special Offers Included / ข้อเสนอพิเศษที่รวมอยู่</Text>
+                    </View>
+                    <View style={s.offersBody}>
+                      {data.offers.map((offer, i) => (
+                        <View key={i} style={s.offerRow}>
+                          <Text style={s.offerCheck}>✓</Text>
+                          <View style={s.offerTextWrap}>
+                            <Text style={s.offerText}>{offer.name}</Text>
+                            {offer.nameTh && (
+                              <Text style={s.offerTextTh}>{offer.nameTh}</Text>
+                            )}
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Payment Terms */}
+                <View style={s.termsBox}>
+                  <View style={s.termsHeader}>
+                    <Text>Payment Terms / เงื่อนไขการชำระเงิน</Text>
+                  </View>
+                  <View style={s.termsBody}>
+                    {paymentTerms.map((t, i) => (
+                      <Text key={i} style={s.termText}>
+                        • {t}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+              </View>
+
+              {/* Financial Summary */}
+              <View style={s.bottomRight}>
+                <View style={s.summaryBox}>
+                  <View style={s.summaryRow}>
+                    <Text>Pro Package</Text>
+                    <Text>{fmt(data.packageAmount)}</Text>
+                  </View>
+                  <View style={s.summaryRow}>
+                    <Text>Add-ons</Text>
+                    <Text>{fmt(data.addonsAmount)}</Text>
+                  </View>
+                  {data.discount > 0 && (
+                    <View style={s.summaryRowOrange}>
+                      <Text>Discount</Text>
+                      <Text>{fmt(data.discount)}</Text>
+                    </View>
+                  )}
+                  <View style={s.summaryRow}>
+                    <Text style={{ fontWeight: 600 }}>Subtotal</Text>
+                    <Text style={{ fontWeight: 600 }}>{fmt(data.subtotal)}</Text>
+                  </View>
+                  <View style={s.summaryRow}>
+                    <Text>VAT 7%</Text>
+                    <Text>{data.vatEnabled ? fmt(data.vatAmount) : '0'}</Text>
+                  </View>
+                  <View style={s.summaryTotal}>
+                    <Text style={{ fontWeight: 700 }}>Total Amount Due</Text>
+                    <Text style={{ fontWeight: 700, fontSize: 11 }}>{fmt(data.totalAmount)}</Text>
+                  </View>
+                </View>
+              </View>
             </View>
           </View>
-          <View style={s.signatureCol}>
-            <View style={s.signatureArea} />
-            <View style={s.signatureLine}>
-              <Text style={s.signatureLabel}>
-                Accepted by / {data.customer.companyName}
-              </Text>
-              <Text style={s.signatureSublabel}>
-                ผู้ยอมรับ / {data.customer.companyNameTh || data.customer.companyName}
-              </Text>
+
+          {/* Signature Footer — pushed toward bottom by space-between */}
+          <View style={s.signatureRow}>
+            <View style={s.signatureCol}>
+              <View style={s.signatureArea}>
+                {data.signatureUrl && (
+                  <Image src={data.signatureUrl} style={s.signatureImage} />
+                )}
+              </View>
+              <View style={s.signatureLine}>
+                <Text style={s.signatureLabel}>
+                  Authorised by / {data.supplier.companyName}
+                </Text>
+                <Text style={s.signatureSublabel}>
+                  ผู้มีอำนาจลงนาม / {data.supplier.companyNameTh || data.supplier.companyName}
+                </Text>
+              </View>
+            </View>
+            <View style={s.signatureCol}>
+              <View style={s.signatureArea} />
+              <View style={s.signatureLine}>
+                <Text style={s.signatureLabel}>
+                  Accepted by / {data.customer.companyName}
+                </Text>
+                <Text style={s.signatureSublabel}>
+                  ผู้ยอมรับ / {data.customer.companyNameTh || data.customer.companyName}
+                </Text>
+              </View>
             </View>
           </View>
         </View>
 
         {/* Page Footer */}
         <View style={s.pageFooter}>
-          <Text>
-            {data.supplier.companyName} | {data.supplier.address} | {data.supplier.email} |{' '}
-            {data.supplier.website || ''} | {data.supplier.phone}
-          </Text>
+          <Text>{FOOTER_TEXT}</Text>
         </View>
       </Page>
     </Document>

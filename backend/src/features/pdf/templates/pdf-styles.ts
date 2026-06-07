@@ -15,5 +15,5 @@ export const colors = {
 };
 
 export const fonts = {
-  family: 'Inter',
+  family: 'Sarabun',
 };

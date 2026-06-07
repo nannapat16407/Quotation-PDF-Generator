@@ -8,6 +8,8 @@ import { UpdateQuotationDto } from './dto/update-quotation.dto';
 import { QuotationQueryDto } from './dto/quotation-query.dto';
 import { Prisma } from '../../generated/prisma/client';
 import { QuotationPdfData } from '../pdf/templates/quotation-pdf';
+import * as path from 'path';
+import * as fs from 'fs';
 
 interface FinancialData {
   items: { qty: number; unitPrice: number; amount: number }[];
@@ -96,17 +98,30 @@ export class QuotationService {
 
     let nextSeq = 1;
     if (lastQuotation) {
-      const lastSeq = parseInt(lastQuotation.quotationNumber.slice(-4), 10);
+      const lastSeq = parseInt(lastQuotation.quotationNumber.slice(-3), 10);
       nextSeq = lastSeq + 1;
     }
 
-    const seq = String(nextSeq).padStart(4, '0');
+    const seq = String(nextSeq).padStart(3, '0');
     return `${prefix}${seq}`;
   }
 
   async getNextNumber() {
     const quotationNumber = await this.generateQuotationNumber();
     return { quotationNumber };
+  }
+
+  private resolveSignatureBase64(signatureUrl: string | null | undefined): string | undefined {
+    if (!signatureUrl) return undefined;
+    // If already a base64 data URL, return as-is
+    if (signatureUrl.startsWith('data:')) return signatureUrl;
+    // Resolve file path to base64
+    const filePath = path.resolve(process.cwd(), signatureUrl.replace(/^\//, ''));
+    if (!fs.existsSync(filePath)) return undefined;
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeType = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
+    const base64 = fs.readFileSync(filePath).toString('base64');
+    return `data:${mimeType};base64,${base64}`;
   }
 
   private async buildPdfData(quotation: any): Promise<QuotationPdfData> {
@@ -163,7 +178,7 @@ export class QuotationService {
       vatEnabled: quotation.vatEnabled,
       vatAmount: Number(quotation.vatAmount),
       totalAmount: Number(quotation.totalAmount),
-      signatureUrl: quotation.signatureUrl || undefined,
+      signatureUrl: this.resolveSignatureBase64(quotation.signatureUrl),
     };
   }
 

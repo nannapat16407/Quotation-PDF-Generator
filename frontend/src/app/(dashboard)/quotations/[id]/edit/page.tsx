@@ -3,6 +3,8 @@
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuotation, useQuotationActions } from '@/hooks/use-quotations';
+import { uploadSignature } from '@/lib/api';
+import { useAuth } from '@/hooks/use-auth';
 import { usePackages } from '@/hooks/use-packages';
 import { useSpecialOffers } from '@/hooks/use-special-offers';
 import { Button } from '@/components/ui/button';
@@ -12,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, ArrowLeft } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Upload, X } from 'lucide-react';
 import type { BillingType, QuotationItemType } from '@/types';
 
 interface ItemRow {
@@ -26,6 +28,15 @@ interface ItemRow {
   sortOrder: number;
 }
 
+interface OfferSelection {
+  id: string;
+  specialOfferId: string;
+  name: string;
+  nameTh: string;
+  selected: boolean;
+  isCustom: boolean;
+}
+
 export default function EditQuotationPage({
   params,
 }: {
@@ -37,6 +48,7 @@ export default function EditQuotationPage({
   const { packages } = usePackages();
   const { offers: availableOffers } = useSpecialOffers();
   const { update } = useQuotationActions();
+  const { user } = useAuth();
 
   const [saving, setSaving] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -52,6 +64,11 @@ export default function EditQuotationPage({
   const [items, setItems] = useState<ItemRow[]>([]);
   const [discount, setDiscount] = useState(0);
   const [vatEnabled, setVatEnabled] = useState(false);
+  const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
+  const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
+  const [signatureError, setSignatureError] = useState<string | null>(null);
+  const [uploadingSignature, setUploadingSignature] = useState(false);
+  const [offerSelections, setOfferSelections] = useState<OfferSelection[]>([]);
 
   useEffect(() => {
     if (quotation && !initialized) {
@@ -77,6 +94,40 @@ export default function EditQuotationPage({
       );
       setDiscount(Number(quotation.discount));
       setVatEnabled(quotation.vatEnabled);
+      const sig = quotation.signatureUrl || null;
+      if (sig) {
+        if (sig.startsWith('data:')) {
+          setSignaturePreview(sig);
+        } else {
+          try {
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+            const origin = new URL(apiUrl).origin;
+            setSignaturePreview(`${origin}${sig}`);
+          } catch {
+            setSignaturePreview(sig);
+          }
+        }
+        setSignatureUrl(sig);
+      } else if (user?.signatureUrl) {
+        try {
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+          const origin = new URL(apiUrl).origin;
+          setSignaturePreview(`${origin}${user.signatureUrl}`);
+        } catch {
+          setSignaturePreview(user.signatureUrl);
+        }
+        setSignatureUrl(user.signatureUrl);
+      }
+      setOfferSelections(
+        (quotation.offerRecords || []).map((o) => ({
+          id: o.id,
+          specialOfferId: o.specialOfferId || '',
+          name: o.name,
+          nameTh: o.nameTh || '',
+          selected: true,
+          isCustom: o.isCustom,
+        })),
+      );
       setInitialized(true);
     }
   }, [quotation, initialized]);
@@ -128,6 +179,46 @@ export default function EditQuotationPage({
     setItems((prev) => prev.filter((i) => i.id !== itemId));
   };
 
+  const handleSignatureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSignatureError(null);
+
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+      setSignatureError('Only PNG and JPEG files are allowed');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setSignatureError('File size must be less than 2MB');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => setSignaturePreview(reader.result as string);
+    reader.readAsDataURL(file);
+
+    setUploadingSignature(true);
+    try {
+      const url = await uploadSignature(file);
+      setSignatureUrl(url);
+    } catch {
+      setSignatureError('Failed to upload signature');
+      setSignaturePreview(null);
+      setSignatureUrl(null);
+    } finally {
+      setUploadingSignature(false);
+    }
+    e.target.value = '';
+  };
+
+  const removeSignature = () => {
+    setSignaturePreview(null);
+    setSignatureUrl(null);
+    setSignatureError(null);
+  };
+
   const packageAmount = items.find((i) => i.type === 'PACKAGE')?.amount || 0;
   const addonsAmount = items
     .filter((i) => i.type === 'ADDON')
@@ -156,6 +247,7 @@ export default function EditQuotationPage({
         vatEnabled,
         vatAmount,
         totalAmount,
+        signatureUrl: signatureUrl || undefined,
         items: items.map(({ type, description, descriptionTh, qty, unitPrice, amount, sortOrder }) => ({
           type,
           description,
@@ -165,12 +257,14 @@ export default function EditQuotationPage({
           amount,
           sortOrder,
         })),
-        offers: quotation?.offerRecords?.map((o) => ({
-          specialOfferId: o.specialOfferId || undefined,
-          name: o.name,
-          nameTh: o.nameTh || undefined,
-          isCustom: o.isCustom,
-        })),
+        offers: offerSelections
+          .filter((o) => o.selected)
+          .map((o) => ({
+            specialOfferId: o.specialOfferId || undefined,
+            name: o.name,
+            nameTh: o.nameTh || undefined,
+            isCustom: o.isCustom,
+          })),
       });
       router.push('/quotations');
     } finally {
@@ -405,6 +499,99 @@ export default function EditQuotationPage({
             <span>Total Amount</span>
             <span>{formatCurrency(totalAmount)}</span>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Special Offers */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Special Offers</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {offerSelections.map((offer) => (
+            <div
+              key={offer.id}
+              className="flex items-start gap-3 py-3 rounded-md hover:bg-muted/30 transition-colors"
+            >
+              <input
+                type="checkbox"
+                checked={offer.selected}
+                onChange={(e) =>
+                  setOfferSelections((prev) =>
+                    prev.map((o) =>
+                      o.id === offer.id ? { ...o, selected: e.target.checked } : o,
+                    ),
+                  )
+                }
+                className="mt-1 size-5 rounded border-border accent-primary cursor-pointer shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold leading-snug">{offer.name}</p>
+                {offer.nameTh && (
+                  <p className="text-sm text-muted-foreground font-medium mt-0.5">
+                    {offer.nameTh}
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
+          {offerSelections.length === 0 && (
+            <p className="text-sm text-muted-foreground py-3">No special offers added.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Authorized Signature */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Authorized Signature</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {!signaturePreview ? (
+            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors">
+              <Upload className="size-8 text-muted-foreground mb-2" />
+              <span className="text-sm text-muted-foreground">
+                Click to upload signature image
+              </span>
+              <span className="text-xs text-muted-foreground mt-1">
+                PNG, JPG, JPEG (max 2MB)
+              </span>
+              <input
+                type="file"
+                accept=".png,.jpg,.jpeg"
+                onChange={handleSignatureUpload}
+                className="hidden"
+              />
+            </label>
+          ) : (
+            <div className="relative inline-block">
+              <img
+                src={signaturePreview}
+                alt="Signature preview"
+                className="max-h-32 max-w-xs object-contain rounded-lg border border-border"
+                onError={() => {
+                  setSignaturePreview(null);
+                  setSignatureUrl(null);
+                }}
+              />
+              {uploadingSignature && (
+                <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded-lg">
+                  <div className="size-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                </div>
+              )}
+              <Button
+                variant="destructive"
+                size="icon-xs"
+                className="absolute -top-2 -right-2"
+                onClick={removeSignature}
+              >
+                <X className="size-3" />
+              </Button>
+            </div>
+          )}
+          {signatureError && (
+            <p className="text-xs text-destructive mt-2">{signatureError}</p>
+          )}
         </CardContent>
       </Card>
 

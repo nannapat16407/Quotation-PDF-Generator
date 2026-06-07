@@ -31,13 +31,16 @@ async function main() {
 
   const supplier = await prisma.supplierInfo.upsert({
     where: { id: 'supplier-info-singleton' },
-    update: {},
+    update: {
+      companyName: 'Super HR Co., Ltd.',
+      address: '287 Silom Rd, Silom, Bang Rak, Bangkok 10500',
+    },
     create: {
       id: 'supplier-info-singleton',
-      companyName: 'SuperHR Co., Ltd.',
+      companyName: 'Super HR Co., Ltd.',
       companyNameTh: 'บริษัท ซุปเปอร์เอชอาร์ จำกัด สำนักงานใหญ่',
       taxId: '0105566158667',
-      address: '287 ชั้น 8 ถนนสีลม แขวงสีลม เขตบางรัก กรุงเทพมหานคร 10500',
+      address: '287 Silom Rd, Silom, Bang Rak, Bangkok 10500',
       phone: '02-077-7581',
       email: 'cs@superhr.biz',
       website: 'www.superhr.biz',
@@ -126,7 +129,7 @@ async function main() {
       nameTh: 'ผู้ใช้งานไม่จำกัด',
       description: 'No limit on user accounts.',
       descriptionTh: 'ไม่จำกัดจำนวนบัญชีผู้ใช้งาน',
-      isDefault: true,
+      isDefault: false,
       sortOrder: 3,
     },
   ];
@@ -134,7 +137,14 @@ async function main() {
   for (const offer of offersData) {
     await prisma.specialOffer.upsert({
       where: { id: offer.id },
-      update: {},
+      update: {
+        name: offer.name,
+        nameTh: offer.nameTh,
+        description: offer.description,
+        descriptionTh: offer.descriptionTh,
+        isDefault: offer.isDefault,
+        sortOrder: offer.sortOrder,
+      },
       create: offer,
     });
   }

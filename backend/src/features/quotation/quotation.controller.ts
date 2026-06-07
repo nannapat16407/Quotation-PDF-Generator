@@ -9,8 +9,14 @@ import {
   Query,
   UseGuards,
   Res,
+  UploadedFile,
+  UseInterceptors,
+  BadRequestException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -18,13 +24,17 @@ import { QuotationService } from './quotation.service';
 import { CreateQuotationDto } from './dto/create-quotation.dto';
 import { UpdateQuotationDto } from './dto/update-quotation.dto';
 import { QuotationQueryDto } from './dto/quotation-query.dto';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @ApiTags('Quotations')
 @Controller('quotations')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class QuotationController {
-  constructor(private readonly quotationService: QuotationService) {}
+  constructor(
+    private readonly quotationService: QuotationService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Get('next-number')
   @ApiOperation({ summary: 'Get next quotation number' })
@@ -78,6 +88,46 @@ export class QuotationController {
   @ApiOperation({ summary: 'Get Google Drive link for quotation PDF' })
   getDriveLink(@Param('id') id: string) {
     return this.quotationService.getDriveLink(id);
+  }
+
+  @Post('upload-signature')
+  @ApiOperation({ summary: 'Upload signature image' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { file: { type: 'string', format: 'binary' } },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 2 * 1024 * 1024 },
+      storage: diskStorage({
+        destination: './uploads/signatures',
+        filename: (req, file, cb) => {
+          const uniqueName = `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+          cb(null, `${uniqueName}${extname(file.originalname)}`);
+        },
+      }),
+      fileFilter: (req, file, cb) => {
+        if (!['image/png', 'image/jpeg'].includes(file.mimetype)) {
+          cb(new BadRequestException('Only PNG and JPEG files are allowed'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  uploadSignature(
+    @CurrentUser('id') userId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const url = `/uploads/signatures/${file.filename}`;
+    this.prisma.user.update({
+      where: { id: userId },
+      data: { signatureUrl: url },
+    }).catch(() => {});
+    return { url };
   }
 
   @Post()

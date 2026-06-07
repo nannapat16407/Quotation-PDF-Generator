@@ -6,6 +6,7 @@ import { usePackages } from '@/hooks/use-packages';
 import { useSpecialOffers } from '@/hooks/use-special-offers';
 import { useAuth } from '@/hooks/use-auth';
 import { useQuotationActions } from '@/hooks/use-quotations';
+import { uploadSignature } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, ArrowLeft, Pencil } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Pencil, Upload, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -77,6 +78,12 @@ export default function CreateQuotationPage() {
   // Items
   const [items, setItems] = useState<ItemRow[]>([]);
 
+  // Signature
+  const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
+  const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
+  const [signatureError, setSignatureError] = useState<string | null>(null);
+  const [uploadingSignature, setUploadingSignature] = useState(false);
+
   // Financial
   const [discount, setDiscount] = useState(0);
   const [vatEnabled, setVatEnabled] = useState(false);
@@ -97,37 +104,26 @@ export default function CreateQuotationPage() {
   const [deletingOfferId, setDeletingOfferId] = useState<string | null>(null);
 
   // Offers
-  const [offerSelections, setOfferSelections] = useState<OfferSelection[]>([
-    {
-      id: 'default-migration',
-      specialOfferId: '',
-      name: 'Free Data Migration',
-      nameTh: 'นำเข้าข้อมูลฟรี',
-      selected: true,
-      isCustom: true,
-    },
-    {
-      id: 'default-support',
-      specialOfferId: '',
-      name: '24/7 Technical Support',
-      nameTh: 'สนับสนุนทางเทคนิคตลอด 24 ชั่วโมง',
-      selected: true,
-      isCustom: true,
-    },
-    {
-      id: 'default-unlimited',
-      specialOfferId: '',
-      name: 'Unlimited Users',
-      nameTh: 'ผู้ใช้งานไม่จำกัด',
-      selected: false,
-      isCustom: true,
-    },
-  ]);
+  const [offerSelections, setOfferSelections] = useState<OfferSelection[]>([]);
 
   // Load next quotation number
   useEffect(() => {
     getNextNumber().then(setQuotationNumber);
   }, []);
+
+  // Preload default signature from user profile
+  useEffect(() => {
+    if (user?.signatureUrl && !signatureUrl) {
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+        const origin = new URL(apiUrl).origin;
+        setSignaturePreview(`${origin}${user.signatureUrl}`);
+      } catch {
+        setSignaturePreview(user.signatureUrl);
+      }
+      setSignatureUrl(user.signatureUrl);
+    }
+  }, [user]);
 
   // Initialize offer selections from available offers
   useEffect(() => {
@@ -297,6 +293,48 @@ export default function CreateQuotationPage() {
     return errors;
   }, [customerCompany, customerCompanyTh, customerTaxId, customerAddress, selectedPackageId]);
 
+  const handleSignatureUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSignatureError(null);
+
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+      setSignatureError('Only PNG and JPEG files are allowed');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setSignatureError('File size must be less than 2MB');
+      e.target.value = '';
+      return;
+    }
+
+    // Show preview immediately from local file
+    const reader = new FileReader();
+    reader.onload = () => setSignaturePreview(reader.result as string);
+    reader.readAsDataURL(file);
+
+    // Upload to server
+    setUploadingSignature(true);
+    try {
+      const url = await uploadSignature(file);
+      setSignatureUrl(url);
+    } catch {
+      setSignatureError('Failed to upload signature');
+      setSignaturePreview(null);
+      setSignatureUrl(null);
+    } finally {
+      setUploadingSignature(false);
+    }
+    e.target.value = '';
+  }, []);
+
+  const removeSignature = useCallback(() => {
+    setSignaturePreview(null);
+    setSignatureUrl(null);
+    setSignatureError(null);
+  }, []);
+
   const handleSubmit = async () => {
     const errors = validateQuotation();
     setValidationErrors(errors);
@@ -316,8 +354,9 @@ export default function CreateQuotationPage() {
 
     const trimmedOffers = offerSelections
       .filter((o) => {
+        if (!o.selected) return false;
         if (o.isCustom) return o.name.trim() && o.nameTh.trim();
-        return o.selected;
+        return true;
       })
       .map((o) => ({
         specialOfferId: o.isCustom ? undefined : o.specialOfferId,
@@ -344,7 +383,7 @@ export default function CreateQuotationPage() {
         vatEnabled,
         vatAmount,
         totalAmount,
-        signatureUrl: user?.signatureUrl || undefined,
+        signatureUrl: signatureUrl || undefined,
         items: items.map(({ type, description, descriptionTh, qty, unitPrice, amount, sortOrder }) => ({
           type,
           description,
@@ -940,6 +979,61 @@ export default function CreateQuotationPage() {
             <span>Total Amount</span>
             <span>{formatCurrency(totalAmount)}</span>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Authorized Signature */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Authorized Signature</CardTitle>
+          <CardDescription>อัปโหลดลายเซ็นผู้มีอำนาจลงนาม</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!signaturePreview ? (
+            <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors">
+              <Upload className="size-8 text-muted-foreground mb-2" />
+              <span className="text-sm text-muted-foreground">
+                Click to upload signature image
+              </span>
+              <span className="text-xs text-muted-foreground mt-1">
+                PNG, JPG, JPEG (max 2MB)
+              </span>
+              <input
+                type="file"
+                accept=".png,.jpg,.jpeg"
+                onChange={handleSignatureUpload}
+                className="hidden"
+              />
+            </label>
+          ) : (
+            <div className="relative inline-block">
+              <img
+                src={signaturePreview}
+                alt="Signature preview"
+                className="max-h-32 max-w-xs object-contain rounded-lg border border-border"
+                onError={() => {
+                  setSignaturePreview(null);
+                  setSignatureUrl(null);
+                }}
+              />
+              {uploadingSignature && (
+                <div className="absolute inset-0 bg-background/50 flex items-center justify-center rounded-lg">
+                  <div className="size-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                </div>
+              )}
+              <Button
+                variant="destructive"
+                size="icon-xs"
+                className="absolute -top-2 -right-2"
+                onClick={removeSignature}
+              >
+                <X className="size-3" />
+              </Button>
+            </div>
+          )}
+          {signatureError && (
+            <p className="text-xs text-destructive mt-2">{signatureError}</p>
+          )}
         </CardContent>
       </Card>
 
