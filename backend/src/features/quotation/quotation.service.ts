@@ -190,7 +190,7 @@ export class QuotationService {
     try {
       const pdfData = await this.buildPdfData(quotation);
       const pdfBuffer = await this.pdfService.generateQuotationPdf(pdfData);
-      const fileName = `${quotation.quotationNumber}_v${quotation.version}.pdf`;
+      const fileName = `${quotation.quotationNumber}.pdf`;
 
       const driveResult = await this.googleDriveService.uploadFile(
         fileName,
@@ -231,7 +231,7 @@ export class QuotationService {
         };
       }
 
-      const fileName = `${quotation.quotationNumber}_v${quotation.version}.pdf`;
+      const fileName = `${quotation.quotationNumber}.pdf`;
       const driveResult = await this.googleDriveService.uploadFile(
         fileName,
         pdfBuffer,

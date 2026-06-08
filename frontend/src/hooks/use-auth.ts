@@ -9,7 +9,7 @@ export function useAuth() {
   const queryClient = useQueryClient();
   const router = useRouter();
 
-  const { data: user } = useQuery({
+  const { data: user, isLoading } = useQuery({
     queryKey: ['auth', 'profile'],
     queryFn: async () => {
       const token = localStorage.getItem('token');
@@ -52,7 +52,7 @@ export function useAuth() {
 
   return {
     user: user ?? null,
-    isLoading: !user && typeof window !== 'undefined' && !!localStorage.getItem('token'),
+    isLoading,
     login: loginMutation.mutateAsync,
     loginError: loginMutation.error,
     register: registerMutation.mutateAsync,

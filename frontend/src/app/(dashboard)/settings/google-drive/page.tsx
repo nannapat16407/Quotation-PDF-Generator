@@ -80,7 +80,7 @@ export default function GoogleDrivePage() {
         <CardHeader>
           <CardTitle>Connection Status</CardTitle>
           <CardDescription>
-              Verify that the Google Drive Service Account is configured and the API is accessible.
+              Verify that Google Drive is configured and the API is accessible.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
