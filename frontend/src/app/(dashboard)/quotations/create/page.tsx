@@ -82,6 +82,7 @@ export default function CreateQuotationPage() {
   const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [signatureError, setSignatureError] = useState<string | null>(null);
+  const [signatureLoadFailed, setSignatureLoadFailed] = useState(false);
   const [uploadingSignature, setUploadingSignature] = useState(false);
 
   // Financial
@@ -111,19 +112,25 @@ export default function CreateQuotationPage() {
     getNextNumber().then(setQuotationNumber);
   }, []);
 
+  // Build full URL for a signature path
+  const buildSignatureSrc = useCallback((path: string) => {
+    if (path.startsWith('data:')) return path;
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+      const origin = new URL(apiUrl).origin;
+      return `${origin}${path}`;
+    } catch {
+      return path;
+    }
+  }, []);
+
   // Preload default signature from user profile
   useEffect(() => {
     if (user?.signatureUrl && !signatureUrl) {
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-        const origin = new URL(apiUrl).origin;
-        setSignaturePreview(`${origin}${user.signatureUrl}`);
-      } catch {
-        setSignaturePreview(user.signatureUrl);
-      }
+      setSignaturePreview(buildSignatureSrc(user.signatureUrl));
       setSignatureUrl(user.signatureUrl);
     }
-  }, [user]);
+  }, [user, buildSignatureSrc]);
 
   // Initialize offer selections from available offers
   useEffect(() => {
@@ -297,6 +304,7 @@ export default function CreateQuotationPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setSignatureError(null);
+    setSignatureLoadFailed(false);
 
     if (!['image/png', 'image/jpeg'].includes(file.type)) {
       setSignatureError('Only PNG and JPEG files are allowed');
@@ -333,6 +341,7 @@ export default function CreateQuotationPage() {
     setSignaturePreview(null);
     setSignatureUrl(null);
     setSignatureError(null);
+    setSignatureLoadFailed(false);
   }, []);
 
   const handleSubmit = async () => {
@@ -989,11 +998,13 @@ export default function CreateQuotationPage() {
           <CardDescription>อัปโหลดลายเซ็นผู้มีอำนาจลงนาม</CardDescription>
         </CardHeader>
         <CardContent>
-          {!signaturePreview ? (
+          {!signaturePreview || signatureLoadFailed ? (
             <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors">
               <Upload className="size-8 text-muted-foreground mb-2" />
               <span className="text-sm text-muted-foreground">
-                Click to upload signature image
+                {signatureLoadFailed
+                  ? 'Signature image could not be loaded — click to re-upload'
+                  : 'Click to upload signature image'}
               </span>
               <span className="text-xs text-muted-foreground mt-1">
                 PNG, JPG, JPEG (max 2MB)
@@ -1012,8 +1023,7 @@ export default function CreateQuotationPage() {
                 alt="Signature preview"
                 className="max-h-32 max-w-xs object-contain rounded-lg border border-border"
                 onError={() => {
-                  setSignaturePreview(null);
-                  setSignatureUrl(null);
+                  setSignatureLoadFailed(true);
                 }}
               />
               {uploadingSignature && (

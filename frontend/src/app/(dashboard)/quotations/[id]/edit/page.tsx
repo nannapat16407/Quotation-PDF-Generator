@@ -67,6 +67,7 @@ export default function EditQuotationPage({
   const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [signatureError, setSignatureError] = useState<string | null>(null);
+  const [signatureLoadFailed, setSignatureLoadFailed] = useState(false);
   const [uploadingSignature, setUploadingSignature] = useState(false);
   const [offerSelections, setOfferSelections] = useState<OfferSelection[]>([]);
 
@@ -95,27 +96,21 @@ export default function EditQuotationPage({
       setDiscount(Number(quotation.discount));
       setVatEnabled(quotation.vatEnabled);
       const sig = quotation.signatureUrl || null;
-      if (sig) {
-        if (sig.startsWith('data:')) {
-          setSignaturePreview(sig);
-        } else {
-          try {
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
-            const origin = new URL(apiUrl).origin;
-            setSignaturePreview(`${origin}${sig}`);
-          } catch {
-            setSignaturePreview(sig);
-          }
-        }
-        setSignatureUrl(sig);
-      } else if (user?.signatureUrl) {
+      const buildSrc = (path: string) => {
+        if (path.startsWith('data:')) return path;
         try {
           const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
           const origin = new URL(apiUrl).origin;
-          setSignaturePreview(`${origin}${user.signatureUrl}`);
+          return `${origin}${path}`;
         } catch {
-          setSignaturePreview(user.signatureUrl);
+          return path;
         }
+      };
+      if (sig) {
+        setSignaturePreview(buildSrc(sig));
+        setSignatureUrl(sig);
+      } else if (user?.signatureUrl) {
+        setSignaturePreview(buildSrc(user.signatureUrl));
         setSignatureUrl(user.signatureUrl);
       }
       setOfferSelections(
@@ -183,6 +178,7 @@ export default function EditQuotationPage({
     const file = e.target.files?.[0];
     if (!file) return;
     setSignatureError(null);
+    setSignatureLoadFailed(false);
 
     if (!['image/png', 'image/jpeg'].includes(file.type)) {
       setSignatureError('Only PNG and JPEG files are allowed');
@@ -217,6 +213,7 @@ export default function EditQuotationPage({
     setSignaturePreview(null);
     setSignatureUrl(null);
     setSignatureError(null);
+    setSignatureLoadFailed(false);
   };
 
   const packageAmount = items.find((i) => i.type === 'PACKAGE')?.amount || 0;
@@ -547,11 +544,13 @@ export default function EditQuotationPage({
           <CardTitle>Authorized Signature</CardTitle>
         </CardHeader>
         <CardContent>
-          {!signaturePreview ? (
+          {!signaturePreview || signatureLoadFailed ? (
             <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors">
               <Upload className="size-8 text-muted-foreground mb-2" />
               <span className="text-sm text-muted-foreground">
-                Click to upload signature image
+                {signatureLoadFailed
+                  ? 'Signature image could not be loaded — click to re-upload'
+                  : 'Click to upload signature image'}
               </span>
               <span className="text-xs text-muted-foreground mt-1">
                 PNG, JPG, JPEG (max 2MB)
@@ -570,8 +569,7 @@ export default function EditQuotationPage({
                 alt="Signature preview"
                 className="max-h-32 max-w-xs object-contain rounded-lg border border-border"
                 onError={() => {
-                  setSignaturePreview(null);
-                  setSignatureUrl(null);
+                  setSignatureLoadFailed(true);
                 }}
               />
               {uploadingSignature && (

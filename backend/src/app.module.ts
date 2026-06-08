@@ -23,7 +23,7 @@ import configuration from './config/configuration';
     }),
     PrismaModule,
     ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'uploads'),
+      rootPath: join(__dirname, '..', '..', 'uploads'),
       serveRoot: '/uploads',
     }),
     AuthModule,
