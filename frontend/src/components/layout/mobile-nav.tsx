@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
-import { X, FileText, Package, Sparkles, Building2 } from 'lucide-react';
+import { X, FileText, Package, Sparkles, Building2, HardDrive } from 'lucide-react';
 
 interface MobileNavProps {
   open: boolean;
@@ -16,6 +16,7 @@ const navItems = [
   { label: 'Supplier Info', href: '/settings/supplier', icon: Building2, adminOnly: true },
   { label: 'Packages', href: '/settings/packages', icon: Package, adminOnly: true },
   { label: 'Special Offers', href: '/settings/special-offers', icon: Sparkles, adminOnly: true },
+  { label: 'Google Drive', href: '/settings/google-drive', icon: HardDrive, adminOnly: false },
 ];
 
 export function MobileNav({ open, onClose }: MobileNavProps) {

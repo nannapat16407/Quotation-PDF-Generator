@@ -10,6 +10,7 @@ import {
   Settings,
   Sparkles,
   Building2,
+  HardDrive,
   User,
 } from 'lucide-react';
 
@@ -18,6 +19,7 @@ const navItems = [
   { label: 'Supplier Info', href: '/settings/supplier', icon: Building2, adminOnly: true },
   { label: 'Packages', href: '/settings/packages', icon: Package, adminOnly: true },
   { label: 'Special Offers', href: '/settings/special-offers', icon: Sparkles, adminOnly: true },
+  { label: 'Google Drive', href: '/settings/google-drive', icon: HardDrive, adminOnly: false },
 ];
 
 export function Sidebar() {

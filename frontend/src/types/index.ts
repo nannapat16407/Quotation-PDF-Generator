@@ -143,3 +143,10 @@ export interface QuotationQueryParams {
   page?: number;
   limit?: number;
 }
+
+export interface GoogleDriveSettings {
+  id: string;
+  folderUrl: string;
+  folderId: string;
+  updatedAt: string;
+}

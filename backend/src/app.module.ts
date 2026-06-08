@@ -12,6 +12,7 @@ import { SpecialOfferModule } from './features/special-offer/special-offer.modul
 import { QuotationModule } from './features/quotation/quotation.module';
 import { PdfModule } from './features/pdf/pdf.module';
 import { GoogleDriveModule } from './integrations/google-drive/google-drive.module';
+import { GoogleDriveSettingsModule } from './features/google-drive-settings/google-drive-settings.module';
 import configuration from './config/configuration';
 
 @Module({
@@ -33,6 +34,7 @@ import configuration from './config/configuration';
     QuotationModule,
     PdfModule,
     GoogleDriveModule,
+    GoogleDriveSettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

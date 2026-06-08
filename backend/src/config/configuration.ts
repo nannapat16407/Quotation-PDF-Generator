@@ -7,10 +7,7 @@ export default () => ({
     expiresIn: '7d',
   },
   googleDrive: {
-    clientId: process.env.GOOGLE_DRIVE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_DRIVE_CLIENT_SECRET,
-    redirectUri: process.env.GOOGLE_DRIVE_REDIRECT_URI,
-    refreshToken: process.env.GOOGLE_DRIVE_REFRESH_TOKEN,
+    credentialsPath: process.env.GOOGLE_APPLICATION_CREDENTIALS,
     folderId: process.env.GOOGLE_DRIVE_FOLDER_ID,
   },
   app: {
