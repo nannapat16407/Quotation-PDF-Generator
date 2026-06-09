@@ -8,8 +8,7 @@ import {
   ValidateNested,
   IsDateString,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { BillingType } from '../../../generated/prisma/client';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   CreateQuotationItemDto,
@@ -52,10 +51,10 @@ export class UpdateQuotationDto {
   @IsString()
   packageId?: string;
 
-  @ApiPropertyOptional({ enum: BillingType })
+  @ApiPropertyOptional({ example: 'MONTHLY' })
   @IsOptional()
-  @IsEnum(BillingType)
-  billingType?: BillingType;
+  @IsEnum(['MONTHLY', 'YEARLY'])
+  billingType?: 'MONTHLY' | 'YEARLY';
 
   @ApiPropertyOptional()
   @IsOptional()

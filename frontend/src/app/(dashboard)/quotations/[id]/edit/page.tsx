@@ -16,6 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, ArrowLeft, Upload, X } from 'lucide-react';
 import type { BillingType, QuotationItemType } from '@/types';
+import { buildPackageDescription } from '@/types';
 
 interface ItemRow {
   id: string;
@@ -132,10 +133,11 @@ export default function EditQuotationPage({
     const pkg = packages.find((p) => p.id === selectedPackageId);
     if (!pkg) return;
     const price = bt === 'MONTHLY' ? Number(pkg.monthlyPrice) : Number(pkg.yearlyPrice);
+    const desc = buildPackageDescription(pkg, bt);
     setItems((prev) =>
       prev.map((i) =>
         i.type === 'PACKAGE'
-          ? { ...i, unitPrice: price, amount: price }
+          ? { ...i, unitPrice: price, amount: price, description: desc.en, descriptionTh: desc.th }
           : i,
       ),
     );

@@ -5,10 +5,8 @@ import { useSupplier } from '@/hooks/use-supplier';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-
-const COMPANY_CONTACT =
-  'Super HR Co., Ltd. | 287 Silom Rd, Silom, Bang Rak, Bangkok 10500 | cs@superhr.biz | www.superhr.biz | 02-077-7581';
 
 export default function SupplierPage() {
   const { supplier, isLoading, update, isUpdating } = useSupplier();
@@ -17,6 +15,7 @@ export default function SupplierPage() {
     companyNameTh: '',
     taxId: '',
     address: '',
+    contactInfo: '',
   });
 
   useEffect(() => {
@@ -26,6 +25,7 @@ export default function SupplierPage() {
         companyNameTh: supplier.companyNameTh || '',
         taxId: supplier.taxId || '',
         address: supplier.address || '',
+        contactInfo: supplier.contactInfo || '',
       });
     }
   }, [supplier]);
@@ -52,15 +52,15 @@ export default function SupplierPage() {
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Company Details</CardTitle>
-          <CardDescription>
-            This information will be used as the default supplier on all quotations.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Company Details</CardTitle>
+            <CardDescription>
+              This information will be used as the default supplier on all quotations.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="companyName">Company Name (EN) *</Label>
@@ -105,29 +105,33 @@ export default function SupplierPage() {
                 placeholder="287 ชั้น 8 ถนนสีลม..."
               />
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="flex justify-end pt-4">
-              <Button type="submit" disabled={isUpdating}>
-                {isUpdating ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Contact Info (PDF Footer)</CardTitle>
+            <CardDescription>
+              This contact block appears in the footer of all quotation PDFs.
+              Changes affect only future PDFs.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              value={form.contactInfo}
+              onChange={(e) => setForm({ ...form, contactInfo: e.target.value })}
+              rows={2}
+              placeholder="Company Name | Address | Email | Website | Phone"
+            />
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Contact Info (PDF Footer)</CardTitle>
-          <CardDescription>
-            This contact block is fixed and appears in all quotation PDFs.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border bg-muted/50 px-4 py-3 text-sm text-muted-foreground font-mono break-all">
-            {COMPANY_CONTACT}
-          </div>
-        </CardContent>
-      </Card>
+        <div className="flex justify-end">
+          <Button type="submit" disabled={isUpdating}>
+            {isUpdating ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }

@@ -18,4 +18,9 @@ export class UpdateSupplierDto {
   @ApiProperty({ example: '287 ชั้น 8 ถนนสีลม...' })
   @IsString()
   address: string;
+
+  @ApiPropertyOptional({ example: 'Super HR Co., Ltd. | 287 Silom Rd...' })
+  @IsOptional()
+  @IsString()
+  contactInfo?: string;
 }

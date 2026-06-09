@@ -1,6 +1,5 @@
-import { IsString, IsOptional, IsEnum, IsBoolean, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsNumber } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { BillingType } from '../../../generated/prisma/client';
 
 export class UpdatePackageDto {
   @ApiPropertyOptional({ example: 'Starter' })
@@ -13,20 +12,15 @@ export class UpdatePackageDto {
   @IsString()
   nameTh?: string;
 
-  @ApiPropertyOptional({ example: 'Basic HR management for small teams' })
+  @ApiPropertyOptional({ example: '1 Organization User' })
   @IsOptional()
   @IsString()
-  description?: string;
+  userCountEn?: string;
 
-  @ApiPropertyOptional({ example: 'ระบบบริหารงานบุคคลเบื้องต้นสำหรับทีมเล็ก' })
+  @ApiPropertyOptional({ example: 'ผู้ใช้องค์กร 1 ราย' })
   @IsOptional()
   @IsString()
-  descriptionTh?: string;
-
-  @ApiPropertyOptional({ enum: BillingType })
-  @IsOptional()
-  @IsEnum(BillingType)
-  billingType?: BillingType;
+  userCountTh?: string;
 
   @ApiPropertyOptional({ example: 150 })
   @IsOptional()

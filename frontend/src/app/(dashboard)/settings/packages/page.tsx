@@ -14,24 +14,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
-import type { Package, BillingType } from '@/types';
+import type { Package } from '@/types';
 
 interface PackageForm {
   name: string;
   nameTh: string;
-  description: string;
-  descriptionTh: string;
-  billingType: BillingType;
+  userCountEn: string;
+  userCountTh: string;
   monthlyPrice: string;
   yearlyPrice: string;
   isActive: boolean;
@@ -41,9 +33,8 @@ interface PackageForm {
 const emptyForm: PackageForm = {
   name: '',
   nameTh: '',
-  description: '',
-  descriptionTh: '',
-  billingType: 'MONTHLY',
+  userCountEn: '',
+  userCountTh: '',
   monthlyPrice: '',
   yearlyPrice: '',
   isActive: true,
@@ -54,9 +45,8 @@ function toForm(pkg: Package): PackageForm {
   return {
     name: pkg.name,
     nameTh: pkg.nameTh || '',
-    description: pkg.description || '',
-    descriptionTh: pkg.descriptionTh || '',
-    billingType: pkg.billingType,
+    userCountEn: pkg.userCountEn || '',
+    userCountTh: pkg.userCountTh || '',
     monthlyPrice: String(pkg.monthlyPrice),
     yearlyPrice: String(pkg.yearlyPrice),
     isActive: pkg.isActive,
@@ -90,9 +80,8 @@ export default function PackagesPage() {
       const payload = {
         name: form.name,
         nameTh: form.nameTh || undefined,
-        description: form.description || undefined,
-        descriptionTh: form.descriptionTh || undefined,
-        billingType: form.billingType,
+        userCountEn: form.userCountEn || undefined,
+        userCountTh: form.userCountTh || undefined,
         monthlyPrice: Number(form.monthlyPrice),
         yearlyPrice: Number(form.yearlyPrice),
         isActive: form.isActive,
@@ -151,19 +140,21 @@ export default function PackagesPage() {
                   )}
                 </div>
                 <Badge variant={pkg.isActive ? 'default' : 'secondary'}>
-                  {pkg.billingType === 'MONTHLY' ? '/mo' : '/yr'}
+                  {pkg.userCountEn || 'N/A'}
                 </Badge>
               </div>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold">
-                ฿{pkg.billingType === 'MONTHLY'
-                  ? Number(pkg.monthlyPrice).toLocaleString()
-                  : Number(pkg.yearlyPrice).toLocaleString()}
+                ฿{Number(pkg.monthlyPrice).toLocaleString()}
+                <span className="text-sm font-normal text-muted-foreground"> /mo</span>
               </p>
-              {pkg.description && (
-                <p className="mt-2 text-sm text-muted-foreground line-clamp-2">
-                  {pkg.description}
+              <p className="text-sm text-muted-foreground">
+                ฿{Number(pkg.yearlyPrice).toLocaleString()} /yr
+              </p>
+              {pkg.userCountTh && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {pkg.userCountTh}
                 </p>
               )}
               <div className="flex gap-2 mt-4">
@@ -225,39 +216,21 @@ export default function PackagesPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Description (EN)</Label>
+                <Label>User Count (EN)</Label>
                 <Input
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Basic HR management..."
+                  value={form.userCountEn}
+                  onChange={(e) => setForm({ ...form, userCountEn: e.target.value })}
+                  placeholder="1 Organization User"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Description (TH)</Label>
+                <Label>User Count (TH)</Label>
                 <Input
-                  value={form.descriptionTh}
-                  onChange={(e) => setForm({ ...form, descriptionTh: e.target.value })}
-                  placeholder="ระบบบริหารงานบุคคล..."
+                  value={form.userCountTh}
+                  onChange={(e) => setForm({ ...form, userCountTh: e.target.value })}
+                  placeholder="ผู้ใช้องค์กร 1 ราย"
                 />
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Billing Type</Label>
-              <Select
-                value={form.billingType}
-                onValueChange={(v) =>
-                  setForm({ ...form, billingType: v as BillingType })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MONTHLY">Monthly</SelectItem>
-                  <SelectItem value="YEARLY">Yearly</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

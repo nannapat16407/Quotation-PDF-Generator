@@ -24,6 +24,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import type { Package, BillingType, QuotationItemType } from '@/types';
+import { buildPackageDescription } from '@/types';
 
 interface ItemRow {
   id: string;
@@ -150,39 +151,6 @@ export default function CreateQuotationPage() {
     }
   }, [availableOffers]);
 
-  // Package description generator
-  const generatePackageDescription = useCallback(
-    (pkg: Package, bt: BillingType) => {
-      const sub = bt === 'MONTHLY' ? 'Monthly Subscription' : 'Annual Subscription';
-      const subTh = bt === 'MONTHLY' ? 'สมาชิกรายเดือน' : 'สมาชิกรายปี';
-
-      const map: Record<string, { en: string; th: string }> = {
-        Starter: {
-          en: `Starter Package - 1 Organization User - ${sub}`,
-          th: `แพ็กเกจ Starter - ผู้ใช้องค์กร 1 ราย - ${subTh}`,
-        },
-        'Basic Account': {
-          en: `Basic Account Package - 2 Organization Users - ${sub}`,
-          th: `แพ็กเกจ Basic Account - ผู้ใช้องค์กร 2 ราย - ${subTh}`,
-        },
-        Advanced: {
-          en: `Advanced Package - 3 Organization Users - ${sub}`,
-          th: `แพ็กเกจ Advanced - ผู้ใช้องค์กร 3 ราย - ${subTh}`,
-        },
-        'Go Pro': {
-          en: `Go Pro Package - Unlimited Users - ${sub}`,
-          th: `แพ็กเกจ Go Pro - ผู้ใช้ไม่จำกัด - ${subTh}`,
-        },
-      };
-
-      return map[pkg.name] ?? {
-        en: `${pkg.name} Package - ${sub}`,
-        th: `แพ็กเกจ ${pkg.name} - ${subTh}`,
-      };
-    },
-    [],
-  );
-
   // Auto-set package item when package or billing type changes
   const updatePackageItem = useCallback(
     (pkg: Package | undefined, bt: BillingType, currentItems: ItemRow[]) => {
@@ -190,7 +158,7 @@ export default function CreateQuotationPage() {
       if (!pkg) return addons;
 
       const price = bt === 'MONTHLY' ? Number(pkg.monthlyPrice) : Number(pkg.yearlyPrice);
-      const desc = generatePackageDescription(pkg, bt);
+      const desc = buildPackageDescription(pkg, bt);
       const pkgItem: ItemRow = {
         id: 'pkg-main',
         type: 'PACKAGE',
@@ -203,7 +171,7 @@ export default function CreateQuotationPage() {
       };
       return [pkgItem, ...addons.map((a, i) => ({ ...a, sortOrder: i + 1 }))];
     },
-    [generatePackageDescription],
+    [],
   );
 
   const handleSelectPackage = (pkgId: string) => {

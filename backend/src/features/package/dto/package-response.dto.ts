@@ -1,5 +1,4 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { BillingType } from '../../../generated/prisma/client';
 
 export class PackageResponseDto {
   @ApiProperty()
@@ -12,13 +11,10 @@ export class PackageResponseDto {
   nameTh?: string;
 
   @ApiPropertyOptional()
-  description?: string;
+  userCountEn?: string;
 
   @ApiPropertyOptional()
-  descriptionTh?: string;
-
-  @ApiProperty({ enum: BillingType })
-  billingType: BillingType;
+  userCountTh?: string;
 
   @ApiProperty()
   monthlyPrice: number;

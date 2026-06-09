@@ -8,6 +8,10 @@ import { UpdateQuotationDto } from './dto/update-quotation.dto';
 import { QuotationQueryDto } from './dto/quotation-query.dto';
 import { Prisma } from '../../generated/prisma/client';
 import { QuotationPdfData } from '../pdf/templates/quotation-pdf';
+
+const DEFAULT_CONTACT_INFO =
+  'Super HR Co., Ltd. | 287 Silom Rd, Silom, Bang Rak, Bangkok 10500 | cs@superhr.biz | www.superhr.biz | 02-077-7581';
+
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -129,9 +133,17 @@ export class QuotationService {
     companyNameTh?: string;
     taxId: string;
     address: string;
+    contactInfo: string;
   }> {
     if (quotation.supplierSnapshot) {
-      return quotation.supplierSnapshot as any;
+      const snap = quotation.supplierSnapshot as any;
+      return {
+        companyName: snap.companyName || '',
+        companyNameTh: snap.companyNameTh || undefined,
+        taxId: snap.taxId || '',
+        address: snap.address || '',
+        contactInfo: snap.contactInfo || DEFAULT_CONTACT_INFO,
+      };
     }
     // Fallback for old quotations without snapshot
     const supplier = await this.supplierService.get();
@@ -140,6 +152,7 @@ export class QuotationService {
       companyNameTh: supplier?.companyNameTh || undefined,
       taxId: supplier?.taxId || '',
       address: supplier?.address || '',
+      contactInfo: (supplier as any)?.contactInfo || DEFAULT_CONTACT_INFO,
     };
   }
 
@@ -159,6 +172,7 @@ export class QuotationService {
         taxId: supplier.taxId,
         address: supplier.address,
       },
+      contactInfo: supplier.contactInfo,
       customer: {
         companyName: quotation.customerCompany,
         companyNameTh: quotation.customerCompanyTh || undefined,
@@ -279,6 +293,7 @@ export class QuotationService {
       companyNameTh: supplier?.companyNameTh || undefined,
       taxId: supplier?.taxId || '',
       address: supplier?.address || '',
+      contactInfo: (supplier as any)?.contactInfo || DEFAULT_CONTACT_INFO,
     };
 
     const quotation = await this.prisma.quotation.create({
@@ -374,6 +389,7 @@ export class QuotationService {
       companyNameTh: supplier?.companyNameTh || undefined,
       taxId: supplier?.taxId || '',
       address: supplier?.address || '',
+      contactInfo: (supplier as any)?.contactInfo || DEFAULT_CONTACT_INFO,
     };
 
     const data: Prisma.QuotationUpdateInput = {

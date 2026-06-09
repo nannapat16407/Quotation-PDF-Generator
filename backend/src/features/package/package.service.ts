@@ -26,9 +26,8 @@ export class PackageService {
       data: {
         name: dto.name,
         nameTh: dto.nameTh,
-        description: dto.description,
-        descriptionTh: dto.descriptionTh,
-        billingType: dto.billingType,
+        userCountEn: dto.userCountEn,
+        userCountTh: dto.userCountTh,
         monthlyPrice: dto.monthlyPrice,
         yearlyPrice: dto.yearlyPrice,
         isActive: dto.isActive ?? true,

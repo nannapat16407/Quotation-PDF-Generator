@@ -22,11 +22,6 @@ model User {
   @@map("users")
 }
 
-enum BillingType {
-  MONTHLY
-  YEARLY
-}
-
 enum QuotationItemType {
   PACKAGE
   ADDON
@@ -48,24 +43,24 @@ model SupplierInfo {
   companyNameTh String?  @map("company_name_th")
   taxId         String   @map("tax_id")
   address       String
+  contactInfo   String   @default("Super HR Co., Ltd. | 287 Silom Rd, Silom, Bang Rak, Bangkok 10500 | cs@superhr.biz | www.superhr.biz | 02-077-7581") @map("contact_info")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@map("supplier_info")
 }
 
 model Package {
-  id            String      @id @default(uuid())
-  name          String
-  nameTh        String?     @map("name_th")
-  description   String?
-  descriptionTh String?     @map("description_th")
-  billingType   BillingType @default(MONTHLY) @map("billing_type")
-  monthlyPrice  Decimal     @default(0) @map("monthly_price") @db.Decimal(12, 2)
-  yearlyPrice   Decimal     @default(0) @map("yearly_price") @db.Decimal(12, 2)
-  isActive      Boolean     @default(true) @map("is_active")
-  sortOrder     Int         @default(0) @map("sort_order")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  id         String  @id @default(uuid())
+  name       String
+  nameTh     String? @map("name_th")
+  userCountEn String? @map("user_count_en")
+  userCountTh String? @map("user_count_th")
+  monthlyPrice Decimal @default(0) @map("monthly_price") @db.Decimal(12, 2)
+  yearlyPrice  Decimal @default(0) @map("yearly_price") @db.Decimal(12, 2)
+  isActive   Boolean @default(true) @map("is_active")
+  sortOrder  Int     @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   quotations Quotation[]
 
@@ -102,8 +97,8 @@ model Quotation {
   issuedDate  DateTime @map("issued_date")
   validUntil  DateTime @map("valid_until")
 
-  packageId    String      @map("package_id")
-  billingType  BillingType @map("billing_type")
+  packageId    String @map("package_id")
+  billingType  String @default("MONTHLY") @map("billing_type")
 
   packageAmount Decimal @default(0) @map("package_amount") @db.Decimal(12, 2)
   addonsAmount  Decimal @default(0) @map("addons_amount") @db.Decimal(12, 2)

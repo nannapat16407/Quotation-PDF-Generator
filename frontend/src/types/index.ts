@@ -19,6 +19,7 @@ export interface SupplierInfo {
   companyNameTh: string | null;
   taxId: string;
   address: string;
+  contactInfo: string;
   updatedAt: string;
 }
 
@@ -26,9 +27,8 @@ export interface Package {
   id: string;
   name: string;
   nameTh: string | null;
-  description: string | null;
-  descriptionTh: string | null;
-  billingType: BillingType;
+  userCountEn: string | null;
+  userCountTh: string | null;
   monthlyPrice: number;
   yearlyPrice: number;
   isActive: boolean;
@@ -133,4 +133,21 @@ export interface QuotationQueryParams {
   dateTo?: string;
   page?: number;
   limit?: number;
+}
+
+/** Build itemization description from package data + billing type */
+export function buildPackageDescription(
+  pkg: { name: string; userCountEn?: string | null; userCountTh?: string | null },
+  billingType: BillingType,
+): { en: string; th: string } {
+  const sub = billingType === 'MONTHLY' ? 'Monthly Subscription' : 'Yearly Subscription';
+  const subTh = billingType === 'MONTHLY' ? 'สมาชิกรายเดือน' : 'สมาชิกรายปี';
+
+  const userPart = pkg.userCountEn ? ` - ${pkg.userCountEn}` : '';
+  const userPartTh = pkg.userCountTh ? ` - ${pkg.userCountTh}` : '';
+
+  return {
+    en: `${pkg.name} Package${userPart} - ${sub}`,
+    th: `แพ็กเกจ ${pkg.name}${userPartTh} - ${subTh}`,
+  };
 }

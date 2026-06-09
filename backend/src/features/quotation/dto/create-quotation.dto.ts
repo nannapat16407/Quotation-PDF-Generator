@@ -9,7 +9,6 @@ import {
   IsDateString,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { BillingType } from '../../../generated/prisma/client';
 import { Type } from 'class-transformer';
 
 export class CreateQuotationItemDto {
@@ -97,9 +96,9 @@ export class CreateQuotationDto {
   @IsString()
   packageId: string;
 
-  @ApiProperty({ enum: BillingType })
-  @IsEnum(BillingType)
-  billingType: BillingType;
+  @ApiProperty({ example: 'MONTHLY' })
+  @IsEnum(['MONTHLY', 'YEARLY'])
+  billingType: 'MONTHLY' | 'YEARLY';
 
   @ApiProperty({ example: 459 })
   @IsNumber()

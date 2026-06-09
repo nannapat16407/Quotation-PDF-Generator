@@ -16,6 +16,9 @@ export class SupplierResponseDto {
   @ApiProperty({ example: '287 ชั้น 8 ถนนสีลม...' })
   address: string;
 
+  @ApiProperty({ example: 'Super HR Co., Ltd. | 287 Silom Rd...' })
+  contactInfo: string;
+
   @ApiProperty()
   updatedAt: Date;
 }

@@ -36,6 +36,8 @@ export interface QuotationPdfData {
     address: string;
   };
 
+  contactInfo: string;
+
   customer: {
     companyName: string;
     companyNameTh?: string;
@@ -377,8 +379,6 @@ const formatDate = (d: string) => {
   return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 };
 
-const FOOTER_TEXT = 'Super HR Co., Ltd. | 287 Silom Rd, Silom, Bang Rak, Bangkok 10500 | cs@superhr.biz | www.superhr.biz | 02-077-7581';
-
 export function QuotationPdfDocument({ data, logoSrc }: { data: QuotationPdfData; logoSrc?: string | null }) {
   return (
     <Document>
@@ -603,7 +603,7 @@ export function QuotationPdfDocument({ data, logoSrc }: { data: QuotationPdfData
 
         {/* Page Footer */}
         <View style={s.pageFooter}>
-          <Text>{FOOTER_TEXT}</Text>
+          <Text>{data.contactInfo}</Text>
         </View>
       </Page>
     </Document>
