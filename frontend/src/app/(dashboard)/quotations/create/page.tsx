@@ -25,6 +25,11 @@ import {
 } from '@/components/ui/dialog';
 import type { Package, BillingType, QuotationItemType } from '@/types';
 import { buildPackageDescription } from '@/types';
+import {
+  SpecialOfferFormDialog,
+  emptyOfferForm,
+  type SpecialOfferFormData,
+} from '@/components/special-offer-form-dialog';
 
 interface ItemRow {
   id: string;
@@ -37,20 +42,11 @@ interface ItemRow {
   sortOrder: number;
 }
 
-interface OfferSelection {
-  id: string;
-  specialOfferId: string;
-  name: string;
-  nameTh: string;
-  selected: boolean;
-  isCustom: boolean;
-}
-
 export default function CreateQuotationPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { packages } = usePackages();
-  const { offers: availableOffers } = useSpecialOffers();
+  const { offers: availableOffers, create: createOffer, update: updateOffer, remove: removeOffer } = useSpecialOffers();
   const { getNextNumber, create } = useQuotationActions();
 
   const [saving, setSaving] = useState(false);
@@ -95,18 +91,16 @@ export default function CreateQuotationPage() {
   const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
   // Offer edit dialog
-  const [offerDialog, setOfferDialog] = useState<{
-    mode: 'add' | 'edit';
-    id: string;
-    name: string;
-    nameTh: string;
-    selected: boolean;
-  } | null>(null);
-  const [offerDialogErrors, setOfferDialogErrors] = useState<{ name?: boolean; nameTh?: boolean }>({});
+  const [offerDialogOpen, setOfferDialogOpen] = useState(false);
+  const [offerDialogMode, setOfferDialogMode] = useState<'add' | 'edit'>('add');
+  const [offerDialogTargetId, setOfferDialogTargetId] = useState<string>('');
+  const [offerFormData, setOfferFormData] = useState<SpecialOfferFormData>(emptyOfferForm);
   const [deletingOfferId, setDeletingOfferId] = useState<string | null>(null);
 
   // Offers
-  const [offerSelections, setOfferSelections] = useState<OfferSelection[]>([]);
+  const [selectedOfferIds, setSelectedOfferIds] = useState<Set<string>>(new Set());
+  const [offersInitialized, setOffersInitialized] = useState(false);
+  const [savingOffer, setSavingOffer] = useState(false);
 
   // Load next quotation number
   useEffect(() => {
@@ -135,21 +129,11 @@ export default function CreateQuotationPage() {
 
   // Initialize offer selections from available offers
   useEffect(() => {
-    if (availableOffers.length > 0 && offerSelections.length === 0) {
-      setOfferSelections(
-        availableOffers
-          .filter((o) => o.isActive)
-          .map((o) => ({
-            id: o.id,
-            specialOfferId: o.id,
-            name: o.name,
-            nameTh: o.nameTh || '',
-            selected: o.isDefault,
-            isCustom: false,
-          })),
-      );
+    if (availableOffers.length > 0 && !offersInitialized) {
+      setSelectedOfferIds(new Set(availableOffers.filter((o) => o.isDefault).map((o) => o.id)));
+      setOffersInitialized(true);
     }
-  }, [availableOffers]);
+  }, [availableOffers, offersInitialized]);
 
   // Auto-set package item when package or billing type changes
   const updatePackageItem = useCallback(
@@ -312,6 +296,44 @@ export default function CreateQuotationPage() {
     setSignatureLoadFailed(false);
   }, []);
 
+  const handleOfferSave = async (form: SpecialOfferFormData) => {
+    setSavingOffer(true);
+    try {
+      const payload = {
+        name: form.name.trim(),
+        nameTh: form.nameTh.trim() || undefined,
+        description: form.description.trim() || undefined,
+        descriptionTh: form.descriptionTh.trim() || undefined,
+        isActive: form.isActive,
+        isDefault: form.isDefault,
+        sortOrder: Number(form.sortOrder),
+      };
+      if (offerDialogMode === 'add') {
+        const created = await createOffer(payload);
+        setSelectedOfferIds((prev) => new Set(prev).add(created.id));
+      } else {
+        await updateOffer({ id: offerDialogTargetId, ...payload });
+      }
+      setOfferDialogOpen(false);
+    } finally {
+      setSavingOffer(false);
+    }
+  };
+
+  const handleOfferDelete = async () => {
+    if (!deletingOfferId) return;
+    try {
+      await removeOffer(deletingOfferId);
+      setSelectedOfferIds((prev) => {
+        const next = new Set(prev);
+        next.delete(deletingOfferId);
+        return next;
+      });
+    } finally {
+      setDeletingOfferId(null);
+    }
+  };
+
   const handleSubmit = async () => {
     const errors = validateQuotation();
     setValidationErrors(errors);
@@ -329,17 +351,13 @@ export default function CreateQuotationPage() {
       return;
     }
 
-    const trimmedOffers = offerSelections
-      .filter((o) => {
-        if (!o.selected) return false;
-        if (o.isCustom) return o.name.trim() && o.nameTh.trim();
-        return true;
-      })
+    const trimmedOffers = availableOffers
+      .filter((o) => selectedOfferIds.has(o.id))
       .map((o) => ({
-        specialOfferId: o.isCustom ? undefined : o.specialOfferId,
-        name: o.name.trim(),
-        nameTh: o.isCustom ? o.nameTh.trim() : (o.nameTh?.trim() || undefined),
-        isCustom: o.isCustom,
+        specialOfferId: o.id,
+        name: o.name,
+        nameTh: o.nameTh?.trim() || undefined,
+        isCustom: false,
       }));
 
     setSaving(true);
@@ -707,20 +725,23 @@ export default function CreateQuotationPage() {
           <CardTitle>Special Offers</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1">
-          {offerSelections.map((offer) => (
+          {availableOffers
+            .filter((o) => o.isActive)
+            .map((offer) => (
             <div
               key={offer.id}
               className="group flex items-start gap-3 py-3 rounded-md hover:bg-muted/30 transition-colors"
             >
               <input
                 type="checkbox"
-                checked={offer.selected}
+                checked={selectedOfferIds.has(offer.id)}
                 onChange={(e) =>
-                  setOfferSelections((prev) =>
-                    prev.map((o) =>
-                      o.id === offer.id ? { ...o, selected: e.target.checked } : o,
-                    ),
-                  )
+                  setSelectedOfferIds((prev) => {
+                    const next = new Set(prev);
+                    if (e.target.checked) next.add(offer.id);
+                    else next.delete(offer.id);
+                    return next;
+                  })
                 }
                 className="mt-1 size-5 rounded border-border accent-primary cursor-pointer shrink-0"
               />
@@ -737,14 +758,18 @@ export default function CreateQuotationPage() {
                   variant="ghost"
                   size="icon-xs"
                   onClick={() => {
-                    setOfferDialogErrors({});
-                    setOfferDialog({
-                      mode: 'edit',
-                      id: offer.id,
+                    setOfferDialogMode('edit');
+                    setOfferDialogTargetId(offer.id);
+                    setOfferFormData({
                       name: offer.name,
-                      nameTh: offer.nameTh,
-                      selected: offer.selected,
+                      nameTh: offer.nameTh || '',
+                      description: offer.description || '',
+                      descriptionTh: offer.descriptionTh || '',
+                      isActive: offer.isActive,
+                      isDefault: offer.isDefault,
+                      sortOrder: String(offer.sortOrder),
                     });
+                    setOfferDialogOpen(true);
                   }}
                 >
                   <Pencil className="size-3.5 text-muted-foreground" />
@@ -765,14 +790,9 @@ export default function CreateQuotationPage() {
             size="sm"
             className="mt-2"
             onClick={() => {
-              setOfferDialogErrors({});
-              setOfferDialog({
-                mode: 'add',
-                id: `custom-${Date.now()}`,
-                name: '',
-                nameTh: '',
-                selected: false,
-              });
+              setOfferDialogMode('add');
+              setOfferFormData(emptyOfferForm);
+              setOfferDialogOpen(true);
             }}
           >
             <Plus className="size-3.5 mr-1" />
@@ -782,109 +802,14 @@ export default function CreateQuotationPage() {
       </Card>
 
       {/* Offer Add/Edit Dialog */}
-      <Dialog
-        open={!!offerDialog}
-        onOpenChange={(open) => { if (!open) setOfferDialog(null); }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {offerDialog?.mode === 'edit' ? 'Edit Special Offer' : 'Add Special Offer'}
-            </DialogTitle>
-          </DialogHeader>
-          {offerDialog && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Offer (English) *</Label>
-                <Input
-                  value={offerDialog.name}
-                  onChange={(e) => {
-                    setOfferDialog({ ...offerDialog, name: e.target.value });
-                    if (e.target.value.trim()) setOfferDialogErrors((p) => ({ ...p, name: false }));
-                  }}
-                  placeholder="Free Data Migration"
-                  className={offerDialogErrors.name ? 'border-destructive' : ''}
-                />
-                {offerDialogErrors.name && (
-                  <p className="text-xs text-destructive">Offer (English) is required</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>Offer (Thai) *</Label>
-                <Input
-                  value={offerDialog.nameTh}
-                  onChange={(e) => {
-                    setOfferDialog({ ...offerDialog, nameTh: e.target.value });
-                    if (e.target.value.trim()) setOfferDialogErrors((p) => ({ ...p, nameTh: false }));
-                  }}
-                  placeholder="นำเข้าข้อมูลฟรี"
-                  className={offerDialogErrors.nameTh ? 'border-destructive' : ''}
-                />
-                {offerDialogErrors.nameTh && (
-                  <p className="text-xs text-destructive">Offer (Thai) is required</p>
-                )}
-              </div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={offerDialog.selected}
-                  onChange={(e) =>
-                    setOfferDialog({ ...offerDialog, selected: e.target.checked })
-                  }
-                  className="size-4 rounded border-border accent-primary"
-                />
-                <span className="text-sm">Selected by default</span>
-              </label>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOfferDialog(null)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (!offerDialog) return;
-                const errors: { name?: boolean; nameTh?: boolean } = {};
-                if (!offerDialog.name.trim()) errors.name = true;
-                if (!offerDialog.nameTh.trim()) errors.nameTh = true;
-                if (errors.name || errors.nameTh) {
-                  setOfferDialogErrors(errors);
-                  return;
-                }
-                if (offerDialog.mode === 'add') {
-                  setOfferSelections((prev) => [
-                    ...prev,
-                    {
-                      id: offerDialog.id,
-                      specialOfferId: '',
-                      name: offerDialog.name.trim(),
-                      nameTh: offerDialog.nameTh.trim(),
-                      selected: offerDialog.selected,
-                      isCustom: true,
-                    },
-                  ]);
-                } else {
-                  setOfferSelections((prev) =>
-                    prev.map((o) =>
-                      o.id === offerDialog.id
-                        ? {
-                            ...o,
-                            name: offerDialog.name.trim(),
-                            nameTh: offerDialog.nameTh.trim(),
-                            selected: offerDialog.selected,
-                          }
-                        : o,
-                    ),
-                  );
-                }
-                setOfferDialog(null);
-              }}
-            >
-              Save Offer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SpecialOfferFormDialog
+        open={offerDialogOpen}
+        onOpenChange={setOfferDialogOpen}
+        mode={offerDialogMode}
+        initialData={offerFormData}
+        onSave={handleOfferSave}
+        saving={savingOffer}
+      />
 
       {/* Delete Offer Confirmation */}
       <Dialog
@@ -901,12 +826,7 @@ export default function CreateQuotationPage() {
             </Button>
             <Button
               variant="destructive"
-              onClick={() => {
-                if (deletingOfferId) {
-                  setOfferSelections((prev) => prev.filter((o) => o.id !== deletingOfferId));
-                }
-                setDeletingOfferId(null);
-              }}
+              onClick={handleOfferDelete}
             >
               Delete
             </Button>

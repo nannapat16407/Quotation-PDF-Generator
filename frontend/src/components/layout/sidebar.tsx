@@ -6,10 +6,8 @@ import { cn } from '@/lib/utils';
 import {
   FileText,
   Package,
-  Settings,
   Sparkles,
   Building2,
-  User,
 } from 'lucide-react';
 
 const navItems = [
@@ -53,22 +51,6 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="px-3 py-4 border-t border-border space-y-1">
-        <Link
-          href="/settings/supplier"
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <Settings className="size-4" />
-          Settings
-        </Link>
-        <Link
-          href="/profile"
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <User className="size-4" />
-          Profile
-        </Link>
-      </div>
     </aside>
   );
 }

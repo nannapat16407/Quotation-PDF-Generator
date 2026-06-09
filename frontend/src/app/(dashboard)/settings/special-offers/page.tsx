@@ -3,43 +3,18 @@
 import { useState } from 'react';
 import { useSpecialOffers } from '@/hooks/use-special-offers';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Switch } from '@/components/ui/switch';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, GripVertical } from 'lucide-react';
 import type { SpecialOffer } from '@/types';
+import {
+  SpecialOfferFormDialog,
+  emptyOfferForm,
+  type SpecialOfferFormData,
+} from '@/components/special-offer-form-dialog';
 
-interface OfferForm {
-  name: string;
-  nameTh: string;
-  description: string;
-  descriptionTh: string;
-  isActive: boolean;
-  isDefault: boolean;
-  sortOrder: string;
-}
-
-const emptyForm: OfferForm = {
-  name: '',
-  nameTh: '',
-  description: '',
-  descriptionTh: '',
-  isActive: true,
-  isDefault: false,
-  sortOrder: '0',
-};
-
-function toForm(offer: SpecialOffer): OfferForm {
+function toForm(offer: SpecialOffer): SpecialOfferFormData {
   return {
     name: offer.name,
     nameTh: offer.nameTh || '',
@@ -54,24 +29,27 @@ function toForm(offer: SpecialOffer): OfferForm {
 export default function SpecialOffersPage() {
   const { offers, isLoading, create, update, remove } = useSpecialOffers();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogMode, setDialogMode] = useState<'add' | 'edit'>('add');
   const [editing, setEditing] = useState<SpecialOffer | null>(null);
-  const [form, setForm] = useState<OfferForm>(emptyForm);
+  const [formData, setFormData] = useState<SpecialOfferFormData>(emptyOfferForm);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const openCreate = () => {
     setEditing(null);
-    setForm(emptyForm);
+    setDialogMode('add');
+    setFormData(emptyOfferForm);
     setDialogOpen(true);
   };
 
   const openEdit = (offer: SpecialOffer) => {
     setEditing(offer);
-    setForm(toForm(offer));
+    setDialogMode('edit');
+    setFormData(toForm(offer));
     setDialogOpen(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (form: SpecialOfferFormData) => {
     setSaving(true);
     try {
       const payload = {
@@ -179,94 +157,14 @@ export default function SpecialOffersPage() {
         </Card>
       )}
 
-      {/* Create / Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editing ? 'Edit Special Offer' : 'Add Special Offer'}</DialogTitle>
-            <DialogDescription>
-              {editing
-                ? 'Update offer details.'
-                : 'Create a new special offer for quotations.'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Name (EN) *</Label>
-                <Input
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="Free Data Migration"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Name (TH)</Label>
-                <Input
-                  value={form.nameTh}
-                  onChange={(e) => setForm({ ...form, nameTh: e.target.value })}
-                  placeholder="นำเข้าข้อมูลฟรี"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Description (EN)</Label>
-                <Input
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Free for Basic plans and above."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Description (TH)</Label>
-                <Input
-                  value={form.descriptionTh}
-                  onChange={(e) => setForm({ ...form, descriptionTh: e.target.value })}
-                  placeholder="ฟรีสำหรับแพ็กเกจ Basic ขึ้นไป"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={form.isActive}
-                  onCheckedChange={(v) => setForm({ ...form, isActive: v })}
-                />
-                <Label>Active</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={form.isDefault}
-                  onCheckedChange={(v) => setForm({ ...form, isDefault: v })}
-                />
-                <Label>Default</Label>
-              </div>
-              <div className="space-y-2">
-                <Label>Order</Label>
-                <Input
-                  type="number"
-                  value={form.sortOrder}
-                  onChange={(e) => setForm({ ...form, sortOrder: e.target.value })}
-                  className="w-20"
-                />
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={saving || !form.name}>
-              {saving ? 'Saving...' : 'Save'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <SpecialOfferFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        mode={dialogMode}
+        initialData={formData}
+        onSave={handleSave}
+        saving={saving}
+      />
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
