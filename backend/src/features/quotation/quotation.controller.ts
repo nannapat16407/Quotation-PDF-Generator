@@ -148,15 +148,6 @@ export class QuotationController {
     return this.quotationService.duplicate(id, userId);
   }
 
-  @Put(':id/status')
-  @ApiOperation({ summary: 'Update quotation status' })
-  updateStatus(
-    @Param('id') id: string,
-    @Body() body: { status: string },
-  ) {
-    return this.quotationService.updateStatus(id, body.status);
-  }
-
   @Put(':id')
   @ApiOperation({ summary: 'Update a quotation' })
   update(@Param('id') id: string, @Body() dto: UpdateQuotationDto) {

@@ -1,6 +1,4 @@
-export type UserRole = 'ADMIN' | 'USER';
 export type BillingType = 'MONTHLY' | 'YEARLY';
-export type QuotationStatus = 'DRAFT' | 'GENERATED' | 'APPROVED' | 'EXPIRED';
 export type QuotationItemType = 'PACKAGE' | 'ADDON';
 
 export interface User {
@@ -8,7 +6,6 @@ export interface User {
   name: string;
   email: string;
   signatureUrl: string | null;
-  role: UserRole;
   createdAt: string;
 }
 
@@ -22,9 +19,6 @@ export interface SupplierInfo {
   companyNameTh: string | null;
   taxId: string;
   address: string;
-  phone: string;
-  email: string;
-  website: string | null;
   updatedAt: string;
 }
 
@@ -81,7 +75,6 @@ export interface Quotation {
   id: string;
   quotationNumber: string;
   version: number;
-  status: QuotationStatus;
   customerCompany: string;
   customerCompanyTh: string | null;
   customerTaxId: string | null;
@@ -114,7 +107,6 @@ export interface QuotationListItem {
   id: string;
   quotationNumber: string;
   version: number;
-  status: QuotationStatus;
   customerCompany: string;
   totalAmount: number;
   issuedDate: string;
@@ -137,16 +129,8 @@ export interface PaginatedResponse<T> {
 
 export interface QuotationQueryParams {
   search?: string;
-  status?: QuotationStatus;
   dateFrom?: string;
   dateTo?: string;
   page?: number;
   limit?: number;
-}
-
-export interface GoogleDriveSettings {
-  id: string;
-  folderUrl: string;
-  folderId: string;
-  updatedAt: string;
 }

@@ -124,8 +124,27 @@ export class QuotationService {
     return `data:${mimeType};base64,${base64}`;
   }
 
-  private async buildPdfData(quotation: any): Promise<QuotationPdfData> {
+  private async getSupplierSnapshot(quotation: any): Promise<{
+    companyName: string;
+    companyNameTh?: string;
+    taxId: string;
+    address: string;
+  }> {
+    if (quotation.supplierSnapshot) {
+      return quotation.supplierSnapshot as any;
+    }
+    // Fallback for old quotations without snapshot
     const supplier = await this.supplierService.get();
+    return {
+      companyName: supplier?.companyName || '',
+      companyNameTh: supplier?.companyNameTh || undefined,
+      taxId: supplier?.taxId || '',
+      address: supplier?.address || '',
+    };
+  }
+
+  private async buildPdfData(quotation: any): Promise<QuotationPdfData> {
+    const supplier = await this.getSupplierSnapshot(quotation);
     const validUntilDate = new Date(quotation.validUntil);
     const dueDate = new Date(validUntilDate);
     dueDate.setMonth(dueDate.getMonth() + 1);
@@ -135,13 +154,10 @@ export class QuotationService {
       issuedDate: quotation.issuedDate,
       validUntil: quotation.validUntil,
       supplier: {
-        companyName: supplier?.companyName || '',
-        companyNameTh: supplier?.companyNameTh || undefined,
-        taxId: supplier?.taxId || '',
-        address: supplier?.address || '',
-        phone: supplier?.phone || '',
-        email: supplier?.email || '',
-        website: supplier?.website || undefined,
+        companyName: supplier.companyName,
+        companyNameTh: supplier.companyNameTh || undefined,
+        taxId: supplier.taxId,
+        address: supplier.address,
       },
       customer: {
         companyName: quotation.customerCompany,
@@ -256,10 +272,18 @@ export class QuotationService {
     dto = this.validateFinances(dto, 'create');
     const quotationNumber = await this.generateQuotationNumber();
 
+    // Snapshot current supplier data for immutable PDF rendering
+    const supplier = await this.supplierService.get();
+    const supplierSnapshot = {
+      companyName: supplier?.companyName || '',
+      companyNameTh: supplier?.companyNameTh || undefined,
+      taxId: supplier?.taxId || '',
+      address: supplier?.address || '',
+    };
+
     const quotation = await this.prisma.quotation.create({
       data: {
         quotationNumber,
-        status: 'DRAFT',
         customerCompany: dto.customerCompany,
         customerCompanyTh: dto.customerCompanyTh,
         customerTaxId: dto.customerTaxId,
@@ -276,6 +300,7 @@ export class QuotationService {
         vatAmount: dto.vatAmount,
         totalAmount: dto.totalAmount,
         signatureUrl: dto.signatureUrl,
+        supplierSnapshot: supplierSnapshot as any,
         createdById: userId,
         items: {
           create: dto.items.map((item, index) => ({
@@ -312,11 +337,10 @@ export class QuotationService {
     // Generate PDF + upload to Drive
     const driveMeta = await this.generateAndUploadPdf(quotation);
 
-    // Update with drive metadata and set status to GENERATED
+    // Update with drive metadata
     const updated = await this.prisma.quotation.update({
       where: { id: quotation.id },
       data: {
-        status: 'GENERATED',
         driveFileId: driveMeta.driveFileId,
         driveUrl: driveMeta.driveUrl,
         pdfFileSize: driveMeta.pdfFileSize,
@@ -339,13 +363,18 @@ export class QuotationService {
   }
 
   async update(id: string, dto: UpdateQuotationDto) {
-    const existing = await this.findOne(id);
-
-    if (existing.status === 'APPROVED') {
-      throw new BadRequestException('Cannot edit an approved quotation');
-    }
+    await this.findOne(id);
 
     dto = this.validateFinances(dto, `update ${id}`);
+
+    // Refresh supplier snapshot on update
+    const supplier = await this.supplierService.get();
+    const supplierSnapshot = {
+      companyName: supplier?.companyName || '',
+      companyNameTh: supplier?.companyNameTh || undefined,
+      taxId: supplier?.taxId || '',
+      address: supplier?.address || '',
+    };
 
     const data: Prisma.QuotationUpdateInput = {
       customerCompany: dto.customerCompany,
@@ -363,6 +392,7 @@ export class QuotationService {
       vatAmount: dto.vatAmount,
       totalAmount: dto.totalAmount,
       signatureUrl: dto.signatureUrl,
+      supplierSnapshot: supplierSnapshot as any,
       version: { increment: 1 },
     };
 
@@ -416,7 +446,6 @@ export class QuotationService {
     const final = await this.prisma.quotation.update({
       where: { id },
       data: {
-        status: 'GENERATED',
         driveFileId: driveMeta.driveFileId,
         driveUrl: driveMeta.driveUrl,
         pdfFileSize: driveMeta.pdfFileSize,
@@ -450,10 +479,6 @@ export class QuotationService {
         { quotationNumber: { contains: query.search, mode: 'insensitive' } },
         { customerCompany: { contains: query.search, mode: 'insensitive' } },
       ];
-    }
-
-    if (query.status) {
-      where.status = query.status;
     }
 
     if (query.dateFrom || query.dateTo) {
@@ -543,35 +568,6 @@ export class QuotationService {
     return this.prisma.quotation.delete({ where: { id } });
   }
 
-  async updateStatus(id: string, newStatus: string) {
-    const quotation = await this.findOne(id);
-    const allowedTransitions: Record<string, string[]> = {
-      DRAFT: ['GENERATED'],
-      GENERATED: ['APPROVED', 'EXPIRED'],
-      APPROVED: [],
-      EXPIRED: [],
-    };
-
-    if (!allowedTransitions[quotation.status]?.includes(newStatus)) {
-      throw new BadRequestException(
-        `Cannot transition from ${quotation.status} to ${newStatus}`,
-      );
-    }
-
-    return this.prisma.quotation.update({
-      where: { id },
-      data: { status: newStatus as any },
-      include: {
-        items: { orderBy: { sortOrder: 'asc' } },
-        offerRecords: true,
-        package: true,
-        createdBy: {
-          select: { id: true, name: true, email: true, signatureUrl: true },
-        },
-      },
-    });
-  }
-
   async duplicate(id: string, userId: string) {
     const original = await this.findOne(id);
     const quotationNumber = await this.generateQuotationNumber();
@@ -579,7 +575,6 @@ export class QuotationService {
     return this.prisma.quotation.create({
       data: {
         quotationNumber,
-        status: 'DRAFT',
         version: 1,
         customerCompany: original.customerCompany,
         customerCompanyTh: original.customerCompanyTh,
@@ -597,6 +592,7 @@ export class QuotationService {
         vatAmount: original.vatAmount,
         totalAmount: original.totalAmount,
         signatureUrl: original.signatureUrl,
+        supplierSnapshot: (original as any).supplierSnapshot,
         createdById: userId,
         items: {
           create: original.items.map((item) => ({

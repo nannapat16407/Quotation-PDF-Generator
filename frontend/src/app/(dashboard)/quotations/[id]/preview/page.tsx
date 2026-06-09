@@ -20,20 +20,9 @@ import {
   Pencil,
   Trash2,
   Download,
-  ExternalLink,
-  FileText,
   Loader2,
   AlertCircle,
 } from 'lucide-react';
-import type { QuotationStatus } from '@/types';
-
-const statusLabels: Record<QuotationStatus, string> = {
-  DRAFT: 'Draft',
-  GENERATED: 'Generated',
-  APPROVED: 'Approved',
-  EXPIRED: 'Expired',
-};
-
 export default function PreviewQuotationPage({
   params,
 }: {
@@ -84,20 +73,6 @@ export default function PreviewQuotationPage({
     }
   };
 
-  const viewPdf = async () => {
-    try {
-      const response = await api.get(`/quotations/${id}/pdf`, {
-        responseType: 'blob',
-      });
-      const blob = new Blob([response.data], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
-    } catch {
-      // handled by iframe error state
-    }
-  };
-
   const downloadPdf = async () => {
     setPdfLoading(true);
     try {
@@ -143,17 +118,9 @@ export default function PreviewQuotationPage({
           </Button>
           <div>
             <h1 className="text-2xl font-semibold">{quotation.quotationNumber}</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge>{statusLabels[quotation.status]}</Badge>
-              <span className="text-sm text-muted-foreground">Version {quotation.version}</span>
-            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={viewPdf}>
-            <FileText className="size-3.5 mr-1" />
-            View PDF
-          </Button>
           <Button variant="outline" size="sm" onClick={downloadPdf} disabled={pdfLoading}>
             {pdfLoading ? (
               <Loader2 className="size-3.5 mr-1 animate-spin" />
@@ -162,24 +129,14 @@ export default function PreviewQuotationPage({
             )}
             Download
           </Button>
-          {quotation.driveUrl && (
-            <a href={quotation.driveUrl} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="sm">
-                <ExternalLink className="size-3.5 mr-1" />
-                Drive
-              </Button>
-            </a>
-          )}
-          {quotation.status !== 'APPROVED' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push(`/quotations/${id}/edit`)}
-            >
-              <Pencil className="size-3.5 mr-1" />
-              Edit
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/quotations/${id}/edit`)}
+          >
+            <Pencil className="size-3.5 mr-1" />
+            Edit
+          </Button>
           <Button variant="destructive" size="sm" onClick={() => setDeleteId(id)}>
             <Trash2 className="size-3.5 mr-1" />
             Delete

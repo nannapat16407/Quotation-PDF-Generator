@@ -1,18 +1,12 @@
-import { IsOptional, IsString, IsEnum, IsDateString, IsNumber } from 'class-validator';
+import { IsOptional, IsString, IsDateString, IsNumber } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { QuotationStatus } from '../../../generated/prisma/client';
 
 export class QuotationQueryDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   search?: string;
-
-  @ApiPropertyOptional({ enum: QuotationStatus })
-  @IsOptional()
-  @IsEnum(QuotationStatus)
-  status?: QuotationStatus;
 
   @ApiPropertyOptional()
   @IsOptional()

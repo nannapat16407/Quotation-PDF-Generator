@@ -7,6 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
+const COMPANY_CONTACT =
+  'Super HR Co., Ltd. | 287 Silom Rd, Silom, Bang Rak, Bangkok 10500 | cs@superhr.biz | www.superhr.biz | 02-077-7581';
+
 export default function SupplierPage() {
   const { supplier, isLoading, update, isUpdating } = useSupplier();
   const [form, setForm] = useState({
@@ -14,9 +17,6 @@ export default function SupplierPage() {
     companyNameTh: '',
     taxId: '',
     address: '',
-    phone: '',
-    email: '',
-    website: '',
   });
 
   useEffect(() => {
@@ -26,9 +26,6 @@ export default function SupplierPage() {
         companyNameTh: supplier.companyNameTh || '',
         taxId: supplier.taxId || '',
         address: supplier.address || '',
-        phone: supplier.phone || '',
-        email: supplier.email || '',
-        website: supplier.website || '',
       });
     }
   }, [supplier]);
@@ -109,47 +106,26 @@ export default function SupplierPage() {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone *</Label>
-                <Input
-                  id="phone"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  required
-                  placeholder="02-077-7581"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  required
-                  placeholder="cs@superhr.biz"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="website">Website</Label>
-              <Input
-                id="website"
-                value={form.website}
-                onChange={(e) => setForm({ ...form, website: e.target.value })}
-                placeholder="www.superhr.biz"
-              />
-            </div>
-
             <div className="flex justify-end pt-4">
               <Button type="submit" disabled={isUpdating}>
                 {isUpdating ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Contact Info (PDF Footer)</CardTitle>
+          <CardDescription>
+            This contact block is fixed and appears in all quotation PDFs.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border bg-muted/50 px-4 py-3 text-sm text-muted-foreground font-mono break-all">
+            {COMPANY_CONTACT}
+          </div>
         </CardContent>
       </Card>
     </div>

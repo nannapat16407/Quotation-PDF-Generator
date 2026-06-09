@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEmail } from 'class-validator';
+import { IsString, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateSupplierDto {
@@ -18,17 +18,4 @@ export class UpdateSupplierDto {
   @ApiProperty({ example: '287 ชั้น 8 ถนนสีลม...' })
   @IsString()
   address: string;
-
-  @ApiProperty({ example: '02-077-7581' })
-  @IsString()
-  phone: string;
-
-  @ApiProperty({ example: 'cs@superhr.biz' })
-  @IsEmail()
-  email: string;
-
-  @ApiPropertyOptional({ example: 'www.superhr.biz' })
-  @IsOptional()
-  @IsString()
-  website?: string;
 }

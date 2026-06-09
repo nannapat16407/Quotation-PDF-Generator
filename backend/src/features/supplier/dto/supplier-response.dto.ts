@@ -16,15 +16,6 @@ export class SupplierResponseDto {
   @ApiProperty({ example: '287 ชั้น 8 ถนนสีลม...' })
   address: string;
 
-  @ApiProperty({ example: '02-077-7581' })
-  phone: string;
-
-  @ApiProperty({ example: 'cs@superhr.biz' })
-  email: string;
-
-  @ApiPropertyOptional({ example: 'www.superhr.biz' })
-  website?: string;
-
   @ApiProperty()
   updatedAt: Date;
 }

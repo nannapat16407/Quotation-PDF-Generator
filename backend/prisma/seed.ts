@@ -41,9 +41,6 @@ async function main() {
       companyNameTh: 'บริษัท ซุปเปอร์เอชอาร์ จำกัด สำนักงานใหญ่',
       taxId: '0105566158667',
       address: '287 Silom Rd, Silom, Bang Rak, Bangkok 10500',
-      phone: '02-077-7581',
-      email: 'cs@superhr.biz',
-      website: 'www.superhr.biz',
     },
   });
   console.log(`Created supplier info: ${supplier.companyName}`);

@@ -3,8 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/hooks/use-auth';
-import { X, FileText, Package, Sparkles, Building2, HardDrive } from 'lucide-react';
+import { X, FileText, Package, Sparkles, Building2 } from 'lucide-react';
 
 interface MobileNavProps {
   open: boolean;
@@ -12,21 +11,14 @@ interface MobileNavProps {
 }
 
 const navItems = [
-  { label: 'Quotations', href: '/quotations', icon: FileText, adminOnly: false },
-  { label: 'Supplier Info', href: '/settings/supplier', icon: Building2, adminOnly: true },
-  { label: 'Packages', href: '/settings/packages', icon: Package, adminOnly: true },
-  { label: 'Special Offers', href: '/settings/special-offers', icon: Sparkles, adminOnly: true },
-  { label: 'Google Drive', href: '/settings/google-drive', icon: HardDrive, adminOnly: false },
+  { label: 'Quotations', href: '/quotations', icon: FileText },
+  { label: 'Supplier Info', href: '/settings/supplier', icon: Building2 },
+  { label: 'Packages', href: '/settings/packages', icon: Package },
+  { label: 'Special Offers', href: '/settings/special-offers', icon: Sparkles },
 ];
 
 export function MobileNav({ open, onClose }: MobileNavProps) {
   const pathname = usePathname();
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
-
-  const visibleItems = navItems.filter(
-    (item) => !item.adminOnly || isAdmin,
-  );
 
   if (!open) return null;
 
@@ -47,7 +39,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
         </div>
 
         <nav className="px-3 py-4 space-y-1">
-          {visibleItems.map((item) => {
+          {navItems.map((item) => {
             const isActive =
               pathname === item.href || pathname.startsWith(item.href + '/');
             return (

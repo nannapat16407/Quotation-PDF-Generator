@@ -7,14 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -22,34 +14,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Plus, Search, Pencil, Eye, Trash2, Download } from 'lucide-react';
-import type { QuotationStatus } from '@/types';
+import { Plus, Search, Pencil, Eye, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-
-const statusColors: Record<QuotationStatus, string> = {
-  DRAFT: 'secondary',
-  GENERATED: 'default',
-  APPROVED: 'default',
-  EXPIRED: 'secondary',
-};
-
-const statusLabels: Record<QuotationStatus, string> = {
-  DRAFT: 'Draft',
-  GENERATED: 'Generated',
-  APPROVED: 'Approved',
-  EXPIRED: 'Expired',
-};
 
 export default function QuotationsPage() {
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<QuotationStatus | ''>('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const { quotations, meta, isLoading } = useQuotations({
     search: search || undefined,
-    status: status || undefined,
     dateFrom: dateFrom || undefined,
     dateTo: dateTo || undefined,
     page,
@@ -109,24 +84,6 @@ export default function QuotationsPage() {
             className="pl-9"
           />
         </div>
-        <Select
-          value={status}
-          onValueChange={(v) => {
-            setStatus(v as QuotationStatus | '');
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="All Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ALL">All Status</SelectItem>
-            <SelectItem value="DRAFT">Draft</SelectItem>
-            <SelectItem value="GENERATED">Generated</SelectItem>
-            <SelectItem value="APPROVED">Approved</SelectItem>
-            <SelectItem value="EXPIRED">Expired</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex items-center gap-2">
@@ -194,7 +151,6 @@ export default function QuotationsPage() {
                     Valid Until
                   </th>
                   <th className="text-right px-4 py-3 font-medium">Total</th>
-                  <th className="text-center px-4 py-3 font-medium">Status</th>
                   <th className="text-right px-4 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
@@ -214,15 +170,6 @@ export default function QuotationsPage() {
                     <td className="px-4 py-3 text-right font-medium">
                       {formatCurrency(q.totalAmount)}
                     </td>
-                    <td className="px-4 py-3 text-center">
-                      <Badge
-                        variant={
-                          statusColors[q.status] as 'default' | 'secondary'
-                        }
-                      >
-                        {statusLabels[q.status]}
-                      </Badge>
-                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
                         <Link href={`/quotations/${q.id}/preview`}>
@@ -230,13 +177,11 @@ export default function QuotationsPage() {
                             <Eye className="size-3.5" />
                           </Button>
                         </Link>
-                        {q.status !== 'APPROVED' && (
-                          <Link href={`/quotations/${q.id}/edit`}>
-                            <Button variant="ghost" size="icon-xs">
-                              <Pencil className="size-3.5" />
-                            </Button>
-                          </Link>
-                        )}
+                        <Link href={`/quotations/${q.id}/edit`}>
+                          <Button variant="ghost" size="icon-xs">
+                            <Pencil className="size-3.5" />
+                          </Button>
+                        </Link>
                         <Button
                           variant="ghost"
                           size="icon-xs"

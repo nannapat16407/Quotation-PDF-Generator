@@ -34,9 +34,6 @@ export interface QuotationPdfData {
     companyNameTh?: string;
     taxId: string;
     address: string;
-    phone: string;
-    email: string;
-    website?: string;
   };
 
   customer: {
