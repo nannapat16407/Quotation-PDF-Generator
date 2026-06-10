@@ -157,8 +157,13 @@ export default function QuotationsPage() {
               <tbody className="divide-y divide-border">
                 {quotations.map((q) => (
                   <tr key={q.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 font-mono text-xs">
-                      {q.quotationNumber}
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/quotations/${q.id}/preview`}
+                        className="font-mono text-xs text-primary hover:underline cursor-pointer"
+                      >
+                        {q.quotationNumber}
+                      </Link>
                     </td>
                     <td className="px-4 py-3">{q.customerCompany}</td>
                     <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">

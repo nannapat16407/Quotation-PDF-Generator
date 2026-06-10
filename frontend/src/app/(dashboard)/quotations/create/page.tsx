@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, ArrowLeft, Pencil, Upload, X } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, Pencil, Upload, X, Loader2, AlertCircle, AlertTriangle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -47,10 +47,14 @@ export default function CreateQuotationPage() {
   const { user } = useAuth();
   const { packages } = usePackages();
   const { offers: availableOffers, create: createOffer, update: updateOffer, remove: removeOffer } = useSpecialOffers();
-  const { getNextNumber, create } = useQuotationActions();
+  const { getNextNumber, validateQuotationNumber, create } = useQuotationActions();
 
   const [saving, setSaving] = useState(false);
   const [quotationNumber, setQuotationNumber] = useState('');
+  const [autoQuotationNumber, setAutoQuotationNumber] = useState('');
+  const [quotationNumberErrors, setQuotationNumberErrors] = useState<string[]>([]);
+  const [quotationNumberWarnings, setQuotationNumberWarnings] = useState<string[]>([]);
+  const [quotationNumberValidating, setQuotationNumberValidating] = useState(false);
 
   // Customer
   const [customerCompany, setCustomerCompany] = useState('');
@@ -85,6 +89,11 @@ export default function CreateQuotationPage() {
   // Financial
   const [discount, setDiscount] = useState(0);
   const [vatEnabled, setVatEnabled] = useState(false);
+  const [dueDate, setDueDate] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 3);
+    return d.toISOString().split('T')[0];
+  });
 
   // Validation
   const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
@@ -104,8 +113,33 @@ export default function CreateQuotationPage() {
 
   // Load next quotation number
   useEffect(() => {
-    getNextNumber().then(setQuotationNumber);
+    getNextNumber().then((num) => {
+      setQuotationNumber(num);
+      setAutoQuotationNumber(num);
+    });
   }, []);
+
+  // Debounced quotation number validation
+  useEffect(() => {
+    if (!quotationNumber || quotationNumber === autoQuotationNumber) {
+      setQuotationNumberErrors([]);
+      setQuotationNumberWarnings([]);
+      return;
+    }
+
+    setQuotationNumberValidating(true);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await validateQuotationNumber(quotationNumber);
+        setQuotationNumberErrors(result.errors);
+        setQuotationNumberWarnings(result.warnings);
+      } finally {
+        setQuotationNumberValidating(false);
+      }
+    }, 500);
+
+    return () => { clearTimeout(timer); setQuotationNumberValidating(false); };
+  }, [quotationNumber]);
 
   // Build full URL for a signature path
   const buildSignatureSrc = useCallback((path: string) => {
@@ -247,7 +281,7 @@ export default function CreateQuotationPage() {
     if (!selectedPackageId) errors.package = true;
     if (!customerCompany.trim()) errors.customerCompany = true;
     if (!customerCompanyTh.trim()) errors.customerCompanyTh = true;
-    if (!customerTaxId.trim()) errors.customerTaxId = true;
+    if (!customerTaxId.trim() || !/^\d{13}$/.test(customerTaxId.trim())) errors.customerTaxId = true;
     if (!customerAddress.trim()) errors.customerAddress = true;
     return errors;
   }, [customerCompany, customerCompanyTh, customerTaxId, customerAddress, selectedPackageId]);
@@ -351,6 +385,10 @@ export default function CreateQuotationPage() {
       return;
     }
 
+    if (quotationNumberErrors.length > 0) {
+      return;
+    }
+
     const trimmedOffers = availableOffers
       .filter((o) => selectedOfferIds.has(o.id))
       .map((o) => ({
@@ -363,12 +401,14 @@ export default function CreateQuotationPage() {
     setSaving(true);
     try {
       await create({
+        quotationNumber: quotationNumber !== autoQuotationNumber ? quotationNumber : undefined,
         customerCompany: customerCompany.trim(),
         customerCompanyTh: customerCompanyTh.trim() || undefined,
         customerTaxId: customerTaxId.trim() || undefined,
         customerAddress: customerAddress.trim() || undefined,
         issuedDate,
         validUntil,
+        dueDate,
         packageId: selectedPackageId,
         billingType,
         packageAmount,
@@ -465,16 +505,20 @@ export default function CreateQuotationPage() {
               data-field="customerTaxId"
               value={customerTaxId}
               onChange={(e) => {
-                setCustomerTaxId(e.target.value);
-                if (attemptedSubmit && e.target.value.trim()) {
+                const val = e.target.value.replace(/\D/g, '').slice(0, 13);
+                setCustomerTaxId(val);
+                if (attemptedSubmit && val.trim() && /^\d{13}$/.test(val.trim())) {
                   setValidationErrors((prev) => ({ ...prev, customerTaxId: false }));
                 }
               }}
               placeholder="0105551234567"
+              maxLength={13}
               className={validationErrors.customerTaxId && attemptedSubmit ? 'border-destructive' : ''}
             />
             {validationErrors.customerTaxId && attemptedSubmit && (
-              <p className="text-xs text-destructive">Tax ID is required</p>
+              <p className="text-xs text-destructive">
+                {!customerTaxId.trim() ? 'Tax ID is required' : 'Tax ID must be exactly 13 digits'}
+              </p>
             )}
           </div>
           <div className="space-y-2">
@@ -504,8 +548,34 @@ export default function CreateQuotationPage() {
         <CardHeader>
           <CardTitle>Document Information</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Quotation Number</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                value={quotationNumber}
+                onChange={(e) => setQuotationNumber(e.target.value.toUpperCase())}
+                className="font-mono"
+                placeholder="QUOYYYYMMNNN"
+              />
+              {quotationNumberValidating && (
+                <Loader2 className="size-4 animate-spin text-muted-foreground shrink-0" />
+              )}
+            </div>
+            {quotationNumberErrors.length > 0 && (
+              <div className="flex items-start gap-1.5 mt-1">
+                <AlertCircle className="size-3.5 text-destructive shrink-0 mt-0.5" />
+                <p className="text-xs text-destructive">{quotationNumberErrors.join(' ')}</p>
+              </div>
+            )}
+            {quotationNumberWarnings.length > 0 && quotationNumberErrors.length === 0 && (
+              <div className="flex items-start gap-1.5 mt-1">
+                <AlertTriangle className="size-3.5 text-amber-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-600">{quotationNumberWarnings.join(' ')}</p>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Issued Date</Label>
               <Input
@@ -520,6 +590,14 @@ export default function CreateQuotationPage() {
                 type="date"
                 value={validUntil}
                 onChange={(e) => setValidUntil(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Due Date</Label>
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
               />
             </div>
           </div>

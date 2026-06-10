@@ -42,6 +42,15 @@ export class QuotationController {
     return this.quotationService.getNextNumber();
   }
 
+  @Get('validate-number')
+  @ApiOperation({ summary: 'Validate a quotation number' })
+  validateNumber(
+    @Query('number') number: string,
+    @Query('excludeId') excludeId?: string,
+  ) {
+    return this.quotationService.validateQuotationNumberPublic(number, excludeId);
+  }
+
   @Get()
   @ApiOperation({ summary: 'List quotations (paginated, filterable)' })
   findAll(@Query() query: QuotationQueryDto) {

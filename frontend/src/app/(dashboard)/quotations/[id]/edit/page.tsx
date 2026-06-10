@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuotation, useQuotationActions } from '@/hooks/use-quotations';
 import { uploadSignature } from '@/lib/api';
@@ -14,9 +14,21 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Trash2, ArrowLeft, Upload, X } from 'lucide-react';
-import type { BillingType, QuotationItemType } from '@/types';
+import { Plus, Trash2, ArrowLeft, Pencil, Upload, X } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import type { BillingType, QuotationItemType, Package } from '@/types';
 import { buildPackageDescription } from '@/types';
+import {
+  SpecialOfferFormDialog,
+  emptyOfferForm,
+  type SpecialOfferFormData,
+} from '@/components/special-offer-form-dialog';
 
 interface ItemRow {
   id: string;
@@ -29,15 +41,6 @@ interface ItemRow {
   sortOrder: number;
 }
 
-interface OfferSelection {
-  id: string;
-  specialOfferId: string;
-  name: string;
-  nameTh: string;
-  selected: boolean;
-  isCustom: boolean;
-}
-
 export default function EditQuotationPage({
   params,
 }: {
@@ -47,31 +50,59 @@ export default function EditQuotationPage({
   const router = useRouter();
   const { quotation, isLoading } = useQuotation(id);
   const { packages } = usePackages();
-  const { offers: availableOffers } = useSpecialOffers();
+  const { offers: availableOffers, create: createOffer, update: updateOffer, remove: removeOffer } = useSpecialOffers();
   const { update } = useQuotationActions();
   const { user } = useAuth();
 
   const [saving, setSaving] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
+  // Customer
   const [customerCompany, setCustomerCompany] = useState('');
   const [customerCompanyTh, setCustomerCompanyTh] = useState('');
   const [customerTaxId, setCustomerTaxId] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+
+  // Dates
   const [issuedDate, setIssuedDate] = useState('');
   const [validUntil, setValidUntil] = useState('');
+  const [dueDate, setDueDate] = useState('');
+
+  // Package
   const [selectedPackageId, setSelectedPackageId] = useState('');
   const [billingType, setBillingType] = useState<BillingType>('MONTHLY');
+
+  // Items
   const [items, setItems] = useState<ItemRow[]>([]);
+
+  // Financial
   const [discount, setDiscount] = useState(0);
   const [vatEnabled, setVatEnabled] = useState(false);
+
+  // Signature
   const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
   const [signatureUrl, setSignatureUrl] = useState<string | null>(null);
   const [signatureError, setSignatureError] = useState<string | null>(null);
   const [signatureLoadFailed, setSignatureLoadFailed] = useState(false);
   const [uploadingSignature, setUploadingSignature] = useState(false);
-  const [offerSelections, setOfferSelections] = useState<OfferSelection[]>([]);
 
+  // Offers
+  const [selectedOfferIds, setSelectedOfferIds] = useState<Set<string>>(new Set());
+  const [offersInitialized, setOffersInitialized] = useState(false);
+
+  // Offer edit dialog
+  const [offerDialogOpen, setOfferDialogOpen] = useState(false);
+  const [offerDialogMode, setOfferDialogMode] = useState<'add' | 'edit'>('add');
+  const [offerDialogTargetId, setOfferDialogTargetId] = useState<string>('');
+  const [offerFormData, setOfferFormData] = useState<SpecialOfferFormData>(emptyOfferForm);
+  const [deletingOfferId, setDeletingOfferId] = useState<string | null>(null);
+  const [savingOffer, setSavingOffer] = useState(false);
+
+  // Validation
+  const [validationErrors, setValidationErrors] = useState<Record<string, boolean>>({});
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
+
+  // Initialize from quotation data
   useEffect(() => {
     if (quotation && !initialized) {
       setCustomerCompany(quotation.customerCompany);
@@ -80,6 +111,7 @@ export default function EditQuotationPage({
       setCustomerAddress(quotation.customerAddress || '');
       setIssuedDate(quotation.issuedDate.split('T')[0]);
       setValidUntil(quotation.validUntil.split('T')[0]);
+      setDueDate(quotation.dueDate ? quotation.dueDate.split('T')[0] : '');
       setSelectedPackageId(quotation.packageId);
       setBillingType(quotation.billingType);
       setItems(
@@ -96,6 +128,7 @@ export default function EditQuotationPage({
       );
       setDiscount(Number(quotation.discount));
       setVatEnabled(quotation.vatEnabled);
+      // Signature
       const sig = quotation.signatureUrl || null;
       const buildSrc = (path: string) => {
         if (path.startsWith('data:')) return path;
@@ -114,55 +147,106 @@ export default function EditQuotationPage({
         setSignaturePreview(buildSrc(user.signatureUrl));
         setSignatureUrl(user.signatureUrl);
       }
-      setOfferSelections(
-        (quotation.offerRecords || []).map((o) => ({
-          id: o.id,
-          specialOfferId: o.specialOfferId || '',
-          name: o.name,
-          nameTh: o.nameTh || '',
-          selected: true,
-          isCustom: o.isCustom,
-        })),
+      // Pre-select offers from quotation's existing records
+      const preselectedIds = new Set(
+        (quotation.offerRecords || [])
+          .map((o) => o.specialOfferId)
+          .filter((id): id is string => !!id),
       );
+      setSelectedOfferIds(preselectedIds);
+      setOffersInitialized(true);
       setInitialized(true);
     }
   }, [quotation, initialized]);
 
+  // Keep offer selections in sync with available offers once both are loaded
+  useEffect(() => {
+    if (initialized && availableOffers.length > 0 && offersInitialized) {
+      // No-op: selectedOfferIds already set from quotation data
+    }
+  }, [availableOffers, initialized, offersInitialized]);
+
+  // Auto-set package item when billing type changes
+  const updatePackageItem = useCallback(
+    (pkg: Package | undefined, bt: BillingType, currentItems: ItemRow[]) => {
+      const addons = currentItems.filter((i) => i.type === 'ADDON');
+      if (!pkg) return addons;
+
+      const price = bt === 'MONTHLY' ? Number(pkg.monthlyPrice) : Number(pkg.yearlyPrice);
+      const desc = buildPackageDescription(pkg, bt);
+      const pkgItem: ItemRow = {
+        id: 'pkg-main',
+        type: 'PACKAGE',
+        description: desc.en,
+        descriptionTh: desc.th,
+        qty: 1,
+        unitPrice: price,
+        amount: price,
+        sortOrder: 0,
+      };
+      return [pkgItem, ...addons.map((a, i) => ({ ...a, sortOrder: i + 1 }))];
+    },
+    [],
+  );
+
+  const handleSelectPackage = (pkgId: string) => {
+    setSelectedPackageId(pkgId);
+    if (attemptedSubmit) setValidationErrors((prev) => ({ ...prev, package: false }));
+    const pkg = packages.find((p) => p.id === pkgId);
+    setItems((prev) => updatePackageItem(pkg, billingType, prev));
+  };
+
   const handleBillingTypeChange = (bt: BillingType) => {
     setBillingType(bt);
     const pkg = packages.find((p) => p.id === selectedPackageId);
-    if (!pkg) return;
-    const price = bt === 'MONTHLY' ? Number(pkg.monthlyPrice) : Number(pkg.yearlyPrice);
-    const desc = buildPackageDescription(pkg, bt);
+    if (pkg) {
+      setItems((prev) => updatePackageItem(pkg, bt, prev));
+    }
+  };
+
+  // Addon management
+  const addAddon = () => {
+    setItems((prev) => {
+      const addons = prev.filter((i) => i.type === 'ADDON');
+      return [
+        ...prev.filter((i) => i.type === 'PACKAGE'),
+        ...addons,
+        {
+          id: `addon-${Date.now()}`,
+          type: 'ADDON' as const,
+          description: '',
+          descriptionTh: '',
+          qty: 1,
+          unitPrice: 0,
+          amount: 0,
+          sortOrder: prev.length,
+        },
+      ];
+    });
+  };
+
+  const updateItemQty = (id: string, rawValue: string) => {
+    if (rawValue === '') {
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, qty: 1, amount: 1 * item.unitPrice } : item,
+        ),
+      );
+      return;
+    }
+    const parsed = parseInt(rawValue, 10);
+    if (isNaN(parsed) || parsed < 1) return;
     setItems((prev) =>
-      prev.map((i) =>
-        i.type === 'PACKAGE'
-          ? { ...i, unitPrice: price, amount: price, description: desc.en, descriptionTh: desc.th }
-          : i,
+      prev.map((item) =>
+        item.id === id ? { ...item, qty: parsed, amount: parsed * item.unitPrice } : item,
       ),
     );
   };
 
-  const addAddon = () => {
-    setItems((prev) => [
-      ...prev,
-      {
-        id: `addon-${Date.now()}`,
-        type: 'ADDON',
-        description: '',
-        descriptionTh: '',
-        qty: 1,
-        unitPrice: 0,
-        amount: 0,
-        sortOrder: prev.length,
-      },
-    ]);
-  };
-
-  const updateAddon = (itemId: string, field: keyof ItemRow, value: any) => {
+  const updateAddonField = (id: string, field: keyof ItemRow, value: any) => {
     setItems((prev) =>
       prev.map((item) => {
-        if (item.id !== itemId) return item;
+        if (item.id !== id) return item;
         const updated = { ...item, [field]: value };
         if (field === 'qty' || field === 'unitPrice') {
           updated.amount = updated.qty * updated.unitPrice;
@@ -172,11 +256,12 @@ export default function EditQuotationPage({
     );
   };
 
-  const removeAddon = (itemId: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== itemId));
+  const removeAddon = (id: string) => {
+    setItems((prev) => prev.filter((i) => i.id !== id));
   };
 
-  const handleSignatureUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Signature
+  const handleSignatureUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setSignatureError(null);
@@ -209,15 +294,54 @@ export default function EditQuotationPage({
       setUploadingSignature(false);
     }
     e.target.value = '';
-  };
+  }, []);
 
-  const removeSignature = () => {
+  const removeSignature = useCallback(() => {
     setSignaturePreview(null);
     setSignatureUrl(null);
     setSignatureError(null);
     setSignatureLoadFailed(false);
+  }, []);
+
+  const handleOfferSave = async (form: SpecialOfferFormData) => {
+    setSavingOffer(true);
+    try {
+      const payload = {
+        name: form.name.trim(),
+        nameTh: form.nameTh.trim() || undefined,
+        description: form.description.trim() || undefined,
+        descriptionTh: form.descriptionTh.trim() || undefined,
+        isActive: form.isActive,
+        isDefault: form.isDefault,
+        sortOrder: Number(form.sortOrder),
+      };
+      if (offerDialogMode === 'add') {
+        const created = await createOffer(payload);
+        setSelectedOfferIds((prev) => new Set(prev).add(created.id));
+      } else {
+        await updateOffer({ id: offerDialogTargetId, ...payload });
+      }
+      setOfferDialogOpen(false);
+    } finally {
+      setSavingOffer(false);
+    }
   };
 
+  const handleOfferDelete = async () => {
+    if (!deletingOfferId) return;
+    try {
+      await removeOffer(deletingOfferId);
+      setSelectedOfferIds((prev) => {
+        const next = new Set(prev);
+        next.delete(deletingOfferId);
+        return next;
+      });
+    } finally {
+      setDeletingOfferId(null);
+    }
+  };
+
+  // Calculations
   const packageAmount = items.find((i) => i.type === 'PACKAGE')?.amount || 0;
   const addonsAmount = items
     .filter((i) => i.type === 'ADDON')
@@ -226,17 +350,53 @@ export default function EditQuotationPage({
   const vatAmount = vatEnabled ? subtotal * 0.07 : 0;
   const totalAmount = subtotal + vatAmount;
 
+  // Validation
+  const validateQuotation = useCallback(() => {
+    const errors: Record<string, boolean> = {};
+    if (!selectedPackageId) errors.package = true;
+    if (!customerCompany.trim()) errors.customerCompany = true;
+    if (!customerTaxId.trim() || !/^\d{13}$/.test(customerTaxId.trim())) errors.customerTaxId = true;
+    if (!customerAddress.trim()) errors.customerAddress = true;
+    return errors;
+  }, [customerCompany, customerTaxId, customerAddress, selectedPackageId]);
+
   const handleSubmit = async () => {
+    const errors = validateQuotation();
+    setValidationErrors(errors);
+    setAttemptedSubmit(true);
+
+    if (Object.keys(errors).length > 0) {
+      if (errors.package) {
+        document.getElementById('package-selection')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        const firstField = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+          '[data-field="customerCompany"], [data-field="customerCompanyTh"], [data-field="customerTaxId"], [data-field="customerAddress"]',
+        );
+        if (firstField) firstField.focus();
+      }
+      return;
+    }
+
+    const trimmedOffers = availableOffers
+      .filter((o) => selectedOfferIds.has(o.id))
+      .map((o) => ({
+        specialOfferId: o.id,
+        name: o.name,
+        nameTh: o.nameTh?.trim() || undefined,
+        isCustom: false,
+      }));
+
     setSaving(true);
     try {
       await update({
         id,
-        customerCompany,
-        customerCompanyTh: customerCompanyTh || undefined,
-        customerTaxId: customerTaxId || undefined,
-        customerAddress: customerAddress || undefined,
+        customerCompany: customerCompany.trim(),
+        customerCompanyTh: customerCompanyTh.trim() || undefined,
+        customerTaxId: customerTaxId.trim() || undefined,
+        customerAddress: customerAddress.trim() || undefined,
         issuedDate,
         validUntil,
+        dueDate: dueDate || undefined,
         packageId: selectedPackageId,
         billingType,
         packageAmount,
@@ -256,14 +416,7 @@ export default function EditQuotationPage({
           amount,
           sortOrder,
         })),
-        offers: offerSelections
-          .filter((o) => o.selected)
-          .map((o) => ({
-            specialOfferId: o.specialOfferId || undefined,
-            name: o.name,
-            nameTh: o.nameTh || undefined,
-            isCustom: o.isCustom,
-          })),
+        offers: trimmedOffers,
       });
       router.push('/quotations');
     } finally {
@@ -272,7 +425,7 @@ export default function EditQuotationPage({
   };
 
   const formatCurrency = (n: number) =>
-    `฿${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    `฿ ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   if (isLoading || !quotation) {
     return (
@@ -284,6 +437,7 @@ export default function EditQuotationPage({
 
   return (
     <div className="space-y-6 max-w-4xl">
+      {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => router.push('/quotations')}>
           <ArrowLeft className="size-4" />
@@ -296,84 +450,202 @@ export default function EditQuotationPage({
         </div>
       </div>
 
-      {/* Customer */}
+      {/* Customer Information */}
       <Card>
         <CardHeader>
           <CardTitle>Customer Information</CardTitle>
+          <CardDescription>Prepared for</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Company Name (EN) *</Label>
-              <Input value={customerCompany} onChange={(e) => setCustomerCompany(e.target.value)} />
+              <Input
+                data-field="customerCompany"
+                value={customerCompany}
+                onChange={(e) => {
+                  setCustomerCompany(e.target.value);
+                  if (attemptedSubmit && e.target.value.trim()) {
+                    setValidationErrors((prev) => ({ ...prev, customerCompany: false }));
+                  }
+                }}
+                className={validationErrors.customerCompany && attemptedSubmit ? 'border-destructive' : ''}
+              />
+              {validationErrors.customerCompany && attemptedSubmit && (
+                <p className="text-xs text-destructive">Company Name (EN) is required</p>
+              )}
             </div>
             <div className="space-y-2">
-              <Label>Company Name (TH)</Label>
-              <Input value={customerCompanyTh} onChange={(e) => setCustomerCompanyTh(e.target.value)} />
+              <Label>Company Name (TH) *</Label>
+              <Input
+                data-field="customerCompanyTh"
+                value={customerCompanyTh}
+                onChange={(e) => setCustomerCompanyTh(e.target.value)}
+              />
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Tax ID</Label>
-              <Input value={customerTaxId} onChange={(e) => setCustomerTaxId(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Address</Label>
-              <Input value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} />
-            </div>
+          <div className="space-y-2">
+            <Label>Tax ID *</Label>
+            <Input
+              data-field="customerTaxId"
+              value={customerTaxId}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '').slice(0, 13);
+                setCustomerTaxId(val);
+                if (attemptedSubmit && val.trim() && /^\d{13}$/.test(val.trim())) {
+                  setValidationErrors((prev) => ({ ...prev, customerTaxId: false }));
+                }
+              }}
+              placeholder="0105551234567"
+              maxLength={13}
+              className={validationErrors.customerTaxId && attemptedSubmit ? 'border-destructive' : ''}
+            />
+            {validationErrors.customerTaxId && attemptedSubmit && (
+              <p className="text-xs text-destructive">
+                {!customerTaxId.trim() ? 'Tax ID is required' : 'Tax ID must be exactly 13 digits'}
+              </p>
+            )}
+          </div>
+          <div className="space-y-2">
+            <Label>Address *</Label>
+            <Input
+              data-field="customerAddress"
+              value={customerAddress}
+              onChange={(e) => {
+                setCustomerAddress(e.target.value);
+                if (attemptedSubmit && e.target.value.trim()) {
+                  setValidationErrors((prev) => ({ ...prev, customerAddress: false }));
+                }
+              }}
+              className={validationErrors.customerAddress && attemptedSubmit ? 'border-destructive' : ''}
+            />
+            {validationErrors.customerAddress && attemptedSubmit && (
+              <p className="text-xs text-destructive">Address is required</p>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {/* Document Info */}
+      {/* Document Information */}
       <Card>
         <CardHeader>
           <CardTitle>Document Information</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Quotation Number</Label>
+            <Input
+              value={quotation.quotationNumber}
+              className="font-mono bg-muted/50"
+              readOnly
+            />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label>Issued Date</Label>
-              <Input type="date" value={issuedDate} onChange={(e) => setIssuedDate(e.target.value)} />
+              <Input
+                type="date"
+                value={issuedDate}
+                onChange={(e) => setIssuedDate(e.target.value)}
+              />
             </div>
             <div className="space-y-2">
               <Label>Valid Until</Label>
-              <Input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
+              <Input
+                type="date"
+                value={validUntil}
+                onChange={(e) => setValidUntil(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Due Date</Label>
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Billing Type Toggle */}
-      <Card>
+      {/* Package Selection */}
+      <Card id="package-selection" className={validationErrors.package && attemptedSubmit ? 'border-destructive' : ''}>
         <CardHeader>
-          <CardTitle>Billing Period</CardTitle>
+          <CardTitle>Package Selection</CardTitle>
+          <CardDescription>Select a package and billing period</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            {(['MONTHLY', 'YEARLY'] as BillingType[]).map((bt) => {
-              const pkg = packages.find((p) => p.id === selectedPackageId);
-              const price = pkg
-                ? bt === 'MONTHLY'
-                  ? Number(pkg.monthlyPrice)
-                  : Number(pkg.yearlyPrice)
-                : 0;
-              return (
-                <Button
+        <CardContent className="space-y-6">
+          {validationErrors.package && attemptedSubmit && (
+            <p className="text-sm text-destructive font-medium">Please select a package.</p>
+          )}
+          {/* Billing Period Toggle */}
+          <div className="flex justify-center">
+            <div className="inline-flex rounded-lg border border-border bg-muted/50 p-1">
+              {(['MONTHLY', 'YEARLY'] as BillingType[]).map((bt) => (
+                <button
                   key={bt}
-                  variant={billingType === bt ? 'default' : 'outline'}
-                  size="sm"
+                  type="button"
                   onClick={() => handleBillingTypeChange(bt)}
+                  className={`px-6 py-2 text-sm font-medium rounded-md transition-all ${
+                    billingType === bt
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
                 >
-                  {bt === 'MONTHLY' ? 'Monthly' : 'Yearly'} — {formatCurrency(price)}
-                </Button>
-              );
-            })}
+                  {bt === 'MONTHLY' ? 'Monthly' : 'Yearly'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Package Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {packages
+              .filter((p) => p.isActive)
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((pkg) => {
+                const isSelected = selectedPackageId === pkg.id;
+                const price =
+                  billingType === 'MONTHLY'
+                    ? Number(pkg.monthlyPrice)
+                    : Number(pkg.yearlyPrice);
+                const period = billingType === 'MONTHLY' ? 'month' : 'year';
+
+                return (
+                  <button
+                    key={pkg.id}
+                    type="button"
+                    onClick={() => handleSelectPackage(pkg.id)}
+                    className={`relative rounded-xl border-2 p-5 text-center transition-all ${
+                      isSelected
+                        ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-md'
+                        : 'border-border hover:border-primary/40 hover:shadow-sm'
+                    }`}
+                  >
+                    {isSelected && (
+                      <div className="absolute -top-2.5 left-1/2 -translate-x-1/2">
+                        <Badge className="text-[10px] px-2 py-0.5">Selected</Badge>
+                      </div>
+                    )}
+                    <p className="font-semibold text-base">{pkg.name}</p>
+                    <div className="mt-3">
+                      <p className="text-2xl font-bold">
+                        {price.toLocaleString()}
+                        <span className="text-sm font-normal text-muted-foreground">
+                          {' '}
+                          THB / {period}
+                        </span>
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
           </div>
         </CardContent>
       </Card>
 
-      {/* Itemization */}
+      {/* Itemization Table */}
       <Card>
         <CardHeader>
           <CardTitle>Itemization</CardTitle>
@@ -385,8 +657,12 @@ export default function EditQuotationPage({
                 <tr>
                   <th className="text-left px-3 py-2 font-medium">Description</th>
                   <th className="text-center px-3 py-2 font-medium w-16">Qty</th>
-                  <th className="text-right px-3 py-2 font-medium w-28">Unit Price</th>
-                  <th className="text-right px-3 py-2 font-medium w-28">Amount</th>
+                  <th className="text-right px-3 py-2 font-medium w-28">
+                    Unit Price
+                  </th>
+                  <th className="text-right px-3 py-2 font-medium w-28">
+                    Amount
+                  </th>
                   <th className="w-10"></th>
                 </tr>
               </thead>
@@ -394,52 +670,82 @@ export default function EditQuotationPage({
                 {items.map((item) => (
                   <tr key={item.id}>
                     <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary" className="text-xs shrink-0">
+                      <div className="flex items-start gap-2">
+                        <Badge variant="secondary" className="text-xs shrink-0 mt-0.5">
                           {item.type}
                         </Badge>
                         {item.type === 'PACKAGE' ? (
-                          <span className="text-muted-foreground">{item.description}</span>
+                          <div className="min-w-0">
+                            <p className="text-sm text-foreground">{item.description}</p>
+                            {item.descriptionTh && (
+                              <p className="text-xs text-muted-foreground">{item.descriptionTh}</p>
+                            )}
+                          </div>
                         ) : (
-                          <Input
-                            value={item.description}
-                            onChange={(e) => updateAddon(item.id, 'description', e.target.value)}
-                            placeholder="Add-on description"
-                            className="h-7 text-sm border-0 shadow-none px-0 focus-visible:ring-0"
-                          />
+                          <div className="flex-1 space-y-1">
+                            <Input
+                              value={item.description}
+                              onChange={(e) =>
+                                updateAddonField(item.id, 'description', e.target.value)
+                              }
+                              placeholder="Description (English)"
+                              className="h-7 text-sm border-0 shadow-none px-0 focus-visible:ring-0"
+                            />
+                            <Input
+                              value={item.descriptionTh}
+                              onChange={(e) =>
+                                updateAddonField(item.id, 'descriptionTh', e.target.value)
+                              }
+                              placeholder="Description (Thai)"
+                              className="h-7 text-xs text-muted-foreground border-0 shadow-none px-0 focus-visible:ring-0"
+                            />
+                          </div>
                         )}
                       </div>
                     </td>
                     <td className="px-3 py-2">
-                      {item.type === 'PACKAGE' ? (
-                        <span className="text-center block">{item.qty}</span>
-                      ) : (
-                        <Input
-                          type="number"
-                          value={item.qty}
-                          onChange={(e) => updateAddon(item.id, 'qty', Number(e.target.value))}
-                          className="h-7 text-sm text-center"
-                          min={1}
-                        />
-                      )}
+                      <Input
+                        type="number"
+                        value={item.qty}
+                        onChange={(e) =>
+                          updateItemQty(item.id, e.target.value)
+                        }
+                        className="h-7 text-sm text-center"
+                        min={1}
+                        step={1}
+                      />
                     </td>
                     <td className="px-3 py-2">
                       {item.type === 'PACKAGE' ? (
-                        <span className="text-right block">{formatCurrency(item.unitPrice)}</span>
+                        <span className="text-right block">
+                          {formatCurrency(item.unitPrice)}
+                        </span>
                       ) : (
                         <Input
                           type="number"
                           value={item.unitPrice}
-                          onChange={(e) => updateAddon(item.id, 'unitPrice', Number(e.target.value))}
+                          onChange={(e) =>
+                            updateAddonField(
+                              item.id,
+                              'unitPrice',
+                              Number(e.target.value),
+                            )
+                          }
                           className="h-7 text-sm text-right"
                           min={0}
                         />
                       )}
                     </td>
-                    <td className="px-3 py-2 text-right font-medium">{formatCurrency(item.amount)}</td>
+                    <td className="px-3 py-2 text-right font-medium">
+                      {formatCurrency(item.amount)}
+                    </td>
                     <td className="px-3 py-2">
                       {item.type === 'ADDON' && (
-                        <Button variant="ghost" size="icon-xs" onClick={() => removeAddon(item.id)}>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => removeAddon(item.id)}
+                        >
                           <Trash2 className="size-3.5 text-destructive" />
                         </Button>
                       )}
@@ -455,6 +761,121 @@ export default function EditQuotationPage({
           </Button>
         </CardContent>
       </Card>
+
+      {/* Special Offers */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Special Offers</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1">
+          {availableOffers
+            .filter((o) => o.isActive)
+            .map((offer) => (
+            <div
+              key={offer.id}
+              className="group flex items-start gap-3 py-3 rounded-md hover:bg-muted/30 transition-colors"
+            >
+              <input
+                type="checkbox"
+                checked={selectedOfferIds.has(offer.id)}
+                onChange={(e) =>
+                  setSelectedOfferIds((prev) => {
+                    const next = new Set(prev);
+                    if (e.target.checked) next.add(offer.id);
+                    else next.delete(offer.id);
+                    return next;
+                  })
+                }
+                className="mt-1 size-5 rounded border-border accent-primary cursor-pointer shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold leading-snug">{offer.name}</p>
+                {offer.nameTh && (
+                  <p className="text-sm text-muted-foreground font-medium mt-0.5">
+                    {offer.nameTh}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => {
+                    setOfferDialogMode('edit');
+                    setOfferDialogTargetId(offer.id);
+                    setOfferFormData({
+                      name: offer.name,
+                      nameTh: offer.nameTh || '',
+                      description: offer.description || '',
+                      descriptionTh: offer.descriptionTh || '',
+                      isActive: offer.isActive,
+                      isDefault: offer.isDefault,
+                      sortOrder: String(offer.sortOrder),
+                    });
+                    setOfferDialogOpen(true);
+                  }}
+                >
+                  <Pencil className="size-3.5 text-muted-foreground" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={() => setDeletingOfferId(offer.id)}
+                >
+                  <Trash2 className="size-3.5 text-muted-foreground" />
+                </Button>
+              </div>
+            </div>
+          ))}
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={() => {
+              setOfferDialogMode('add');
+              setOfferFormData(emptyOfferForm);
+              setOfferDialogOpen(true);
+            }}
+          >
+            <Plus className="size-3.5 mr-1" />
+            Add Offer
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Offer Add/Edit Dialog */}
+      <SpecialOfferFormDialog
+        open={offerDialogOpen}
+        onOpenChange={setOfferDialogOpen}
+        mode={offerDialogMode}
+        initialData={offerFormData}
+        onSave={handleOfferSave}
+        saving={savingOffer}
+      />
+
+      {/* Delete Offer Confirmation */}
+      <Dialog
+        open={!!deletingOfferId}
+        onOpenChange={(open) => { if (!open) setDeletingOfferId(null); }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete this special offer?</DialogTitle>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setDeletingOfferId(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleOfferDelete}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Financial Summary */}
       <Card>
@@ -501,49 +922,11 @@ export default function EditQuotationPage({
         </CardContent>
       </Card>
 
-      {/* Special Offers */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Special Offers</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1">
-          {offerSelections.map((offer) => (
-            <div
-              key={offer.id}
-              className="flex items-start gap-3 py-3 rounded-md hover:bg-muted/30 transition-colors"
-            >
-              <input
-                type="checkbox"
-                checked={offer.selected}
-                onChange={(e) =>
-                  setOfferSelections((prev) =>
-                    prev.map((o) =>
-                      o.id === offer.id ? { ...o, selected: e.target.checked } : o,
-                    ),
-                  )
-                }
-                className="mt-1 size-5 rounded border-border accent-primary cursor-pointer shrink-0"
-              />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold leading-snug">{offer.name}</p>
-                {offer.nameTh && (
-                  <p className="text-sm text-muted-foreground font-medium mt-0.5">
-                    {offer.nameTh}
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-          {offerSelections.length === 0 && (
-            <p className="text-sm text-muted-foreground py-3">No special offers added.</p>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Authorized Signature */}
       <Card>
         <CardHeader>
           <CardTitle>Authorized Signature</CardTitle>
+          <CardDescription>อัปโหลดลายเซ็นผู้มีอำนาจลงนาม</CardDescription>
         </CardHeader>
         <CardContent>
           {!signaturePreview || signatureLoadFailed ? (
@@ -600,7 +983,7 @@ export default function EditQuotationPage({
         <Button variant="outline" onClick={() => router.push('/quotations')}>
           Cancel
         </Button>
-        <Button onClick={handleSubmit} disabled={saving || !customerCompany}>
+        <Button onClick={handleSubmit} disabled={saving}>
           {saving ? 'Saving...' : 'Update Quotation'}
         </Button>
       </div>

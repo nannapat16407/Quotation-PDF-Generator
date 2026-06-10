@@ -81,8 +81,10 @@ export interface Quotation {
   customerAddress: string | null;
   issuedDate: string;
   validUntil: string;
+  dueDate: string | null;
   packageId: string;
   billingType: BillingType;
+  paymentTerm: string;
   packageAmount: number;
   addonsAmount: number;
   discount: number;

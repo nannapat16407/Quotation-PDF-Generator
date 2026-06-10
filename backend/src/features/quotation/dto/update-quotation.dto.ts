@@ -7,6 +7,7 @@ import {
   IsArray,
   ValidateNested,
   IsDateString,
+  Matches,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -16,6 +17,11 @@ import {
 } from './create-quotation.dto';
 
 export class UpdateQuotationDto {
+  @ApiPropertyOptional({ example: 'QUO202606001' })
+  @IsOptional()
+  @IsString()
+  quotationNumber?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -29,6 +35,7 @@ export class UpdateQuotationDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Matches(/^\d{13}$/, { message: 'Tax ID must be exactly 13 digits' })
   customerTaxId?: string;
 
   @ApiPropertyOptional()
@@ -45,6 +52,16 @@ export class UpdateQuotationDto {
   @IsOptional()
   @IsDateString()
   validUntil?: string;
+
+  @ApiPropertyOptional({ example: '1 Month' })
+  @IsOptional()
+  @IsString()
+  paymentTerm?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  dueDate?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

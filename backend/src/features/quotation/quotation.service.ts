@@ -115,6 +115,67 @@ export class QuotationService {
     return { quotationNumber };
   }
 
+  private async validateQuotationNumber(
+    quotationNumber: string,
+    excludeId?: string,
+  ): Promise<{ errors: string[]; warnings: string[] }> {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    // Rule 1: Format
+    const formatRegex = /^QUO\d{4}(0[1-9]|1[0-2])\d{3}$/;
+    if (!formatRegex.test(quotationNumber)) {
+      errors.push('Invalid quotation number format. Expected QUOYYYYMMNNN.');
+      return { errors, warnings }; // skip further checks if format is wrong
+    }
+
+    // Rule 2: Uniqueness
+    const existing = await this.prisma.quotation.findFirst({
+      where: { quotationNumber },
+      select: { id: true },
+    });
+    if (existing && existing.id !== excludeId) {
+      errors.push('This quotation number already exists.');
+    }
+
+    // Rule 3: Future month not allowed
+    const yyyymm = quotationNumber.slice(3, 9);
+    const year = parseInt(yyyymm.slice(0, 4), 10);
+    const month = parseInt(yyyymm.slice(4, 6), 10);
+    const now = new Date();
+    const inputDate = new Date(year, month - 1, 1);
+    const currentDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (inputDate > currentDate) {
+      errors.push('Quotation month cannot be in the future.');
+    }
+
+    // Rule 4: Sequence warning (non-blocking)
+    const prefix = quotationNumber.slice(0, 8);
+    const seq = parseInt(quotationNumber.slice(-3), 10);
+    const lastQuotation = await this.prisma.quotation.findFirst({
+      where: {
+        quotationNumber: { startsWith: prefix },
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      orderBy: { quotationNumber: 'desc' },
+      select: { quotationNumber: true },
+    });
+    if (lastQuotation) {
+      const lastSeq = parseInt(lastQuotation.quotationNumber.slice(-3), 10);
+      if (seq <= lastSeq) {
+        warnings.push(
+          `This quotation number is older than the latest quotation number (${lastQuotation.quotationNumber}).`,
+        );
+      }
+    }
+
+    return { errors, warnings };
+  }
+
+  async validateQuotationNumberPublic(quotationNumber: string, excludeId?: string) {
+    return this.validateQuotationNumber(quotationNumber, excludeId);
+  }
+
   private resolveSignatureBase64(signatureUrl: string | null | undefined): string | undefined {
     if (!signatureUrl) return undefined;
     // If already a base64 data URL, return as-is
@@ -158,14 +219,12 @@ export class QuotationService {
 
   private async buildPdfData(quotation: any): Promise<QuotationPdfData> {
     const supplier = await this.getSupplierSnapshot(quotation);
-    const validUntilDate = new Date(quotation.validUntil);
-    const dueDate = new Date(validUntilDate);
-    dueDate.setMonth(dueDate.getMonth() + 1);
 
     return {
       quotationNumber: quotation.quotationNumber,
       issuedDate: quotation.issuedDate,
       validUntil: quotation.validUntil,
+      dueDate: quotation.dueDate || undefined,
       supplier: {
         companyName: supplier.companyName,
         companyNameTh: supplier.companyNameTh || undefined,
@@ -183,11 +242,7 @@ export class QuotationService {
         name: quotation.package?.name || '',
         billingType: quotation.billingType,
         price: Number(quotation.packageAmount),
-        dueDate: dueDate.toLocaleDateString('th-TH', {
-          day: 'numeric',
-          month: 'long',
-          year: 'numeric',
-        }),
+        paymentTerm: quotation.paymentTerm || '30 Days',
       },
       items: (quotation.items || []).map((item: any) => ({
         description: item.description,
@@ -284,7 +339,18 @@ export class QuotationService {
 
   async create(userId: string, dto: CreateQuotationDto) {
     dto = this.validateFinances(dto, 'create');
-    const quotationNumber = await this.generateQuotationNumber();
+
+    // Determine quotation number: use manual override or auto-generate
+    let quotationNumber: string;
+    if (dto.quotationNumber) {
+      const validation = await this.validateQuotationNumber(dto.quotationNumber);
+      if (validation.errors.length > 0) {
+        throw new BadRequestException(validation.errors.join(' '));
+      }
+      quotationNumber = dto.quotationNumber;
+    } else {
+      quotationNumber = await this.generateQuotationNumber();
+    }
 
     // Snapshot current supplier data for immutable PDF rendering
     const supplier = await this.supplierService.get();
@@ -305,6 +371,8 @@ export class QuotationService {
         customerAddress: dto.customerAddress,
         issuedDate: new Date(dto.issuedDate),
         validUntil: new Date(dto.validUntil),
+        paymentTerm: dto.paymentTerm || '1 Month',
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
         packageId: dto.packageId,
         billingType: dto.billingType,
         packageAmount: dto.packageAmount,
@@ -382,6 +450,14 @@ export class QuotationService {
 
     dto = this.validateFinances(dto, `update ${id}`);
 
+    // Validate quotation number if provided
+    if (dto.quotationNumber) {
+      const validation = await this.validateQuotationNumber(dto.quotationNumber, id);
+      if (validation.errors.length > 0) {
+        throw new BadRequestException(validation.errors.join(' '));
+      }
+    }
+
     // Refresh supplier snapshot on update
     const supplier = await this.supplierService.get();
     const supplierSnapshot = {
@@ -393,12 +469,15 @@ export class QuotationService {
     };
 
     const data: Prisma.QuotationUpdateInput = {
+      quotationNumber: dto.quotationNumber || undefined,
       customerCompany: dto.customerCompany,
       customerCompanyTh: dto.customerCompanyTh,
       customerTaxId: dto.customerTaxId,
       customerAddress: dto.customerAddress,
       issuedDate: dto.issuedDate ? new Date(dto.issuedDate) : undefined,
       validUntil: dto.validUntil ? new Date(dto.validUntil) : undefined,
+      paymentTerm: dto.paymentTerm || undefined,
+      dueDate: dto.dueDate ? new Date(dto.dueDate) : undefined,
       billingType: dto.billingType,
       packageAmount: dto.packageAmount,
       addonsAmount: dto.addonsAmount,
@@ -598,6 +677,7 @@ export class QuotationService {
         customerAddress: original.customerAddress,
         issuedDate: new Date(),
         validUntil: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+        paymentTerm: original.paymentTerm,
         packageId: original.packageId,
         billingType: original.billingType,
         packageAmount: original.packageAmount,

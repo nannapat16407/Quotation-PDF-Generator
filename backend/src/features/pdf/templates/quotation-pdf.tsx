@@ -28,6 +28,7 @@ export interface QuotationPdfData {
   quotationNumber: string;
   issuedDate: string;
   validUntil: string;
+  dueDate?: string;
 
   supplier: {
     companyName: string;
@@ -49,7 +50,7 @@ export interface QuotationPdfData {
     name: string;
     billingType: string;
     price: number;
-    dueDate: string;
+    paymentTerm: string;
   };
 
   items: QuotationPdfItem[];
@@ -379,6 +380,17 @@ const formatDate = (d: string) => {
   return dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 };
 
+const thaiMonths = [
+  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน',
+  'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม',
+  'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
+];
+
+const formatThaiDate = (d: string) => {
+  const dt = new Date(d);
+  return `${dt.getDate()} ${thaiMonths[dt.getMonth()]} ${dt.getFullYear() + 543}`;
+};
+
 export function QuotationPdfDocument({ data, logoSrc }: { data: QuotationPdfData; logoSrc?: string | null }) {
   return (
     <Document>
@@ -465,7 +477,7 @@ export function QuotationPdfDocument({ data, logoSrc }: { data: QuotationPdfData
                 {data.package.billingType === 'YEARLY' ? 'Year' : 'Month'}
               </Text>
               <Text style={s.heroDue}>
-                Due / ชำระภายใน {data.package.dueDate}
+                Due / ชำระภายใน {data.dueDate ? formatThaiDate(data.dueDate) : data.package.paymentTerm}
               </Text>
             </View>
 

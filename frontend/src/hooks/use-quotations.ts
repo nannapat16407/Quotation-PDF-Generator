@@ -82,6 +82,13 @@ export function useQuotationActions() {
 
   return {
     getNextNumber,
+    validateQuotationNumber: async (number: string, excludeId?: string) => {
+      const { data } = await api.get<{ errors: string[]; warnings: string[] }>(
+        '/quotations/validate-number',
+        { params: { number, excludeId } },
+      );
+      return data;
+    },
     create: createMutation.mutateAsync,
     update: updateMutation.mutateAsync,
     remove: deleteMutation.mutateAsync,

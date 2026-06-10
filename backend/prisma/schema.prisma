@@ -96,6 +96,8 @@ model Quotation {
 
   issuedDate  DateTime @map("issued_date")
   validUntil  DateTime @map("valid_until")
+  paymentTerm String   @default("1 Month") @map("payment_term")
+  dueDate     DateTime? @map("due_date")
 
   packageId    String @map("package_id")
   billingType  String @default("MONTHLY") @map("billing_type")
