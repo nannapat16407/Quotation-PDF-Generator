@@ -8,7 +8,7 @@ import {
   QuotationPdfData,
 } from './templates/quotation-pdf';
 
-const fontsDir = path.resolve(process.cwd(), 'src', 'features', 'pdf', 'fonts');
+const fontsDir = path.resolve(__dirname, 'fonts');
 
 Font.register({
   family: 'Sarabun',
@@ -20,7 +20,7 @@ Font.register({
   ],
 });
 
-const logoPath = path.resolve(process.cwd(), 'src', 'features', 'pdf', 'assets', 'superhr.png');
+const logoPath = path.resolve(__dirname, 'assets', 'superhr.png');
 const logoBase64 = fs.existsSync(logoPath)
   ? `data:image/png;base64,${fs.readFileSync(logoPath).toString('base64')}`
   : null;

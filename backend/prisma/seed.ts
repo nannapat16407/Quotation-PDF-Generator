@@ -4,11 +4,10 @@ import pg from 'pg';
 import { hash } from 'bcryptjs';
 
 const pool = new pg.Pool({
-  host: 'localhost',
-  port: 5432,
-  database: 'quotation_db',
-  user: 'postgres',
-  password: 'postgres',
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('neon.tech')
+    ? { rejectUnauthorized: false }
+    : undefined,
 });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });

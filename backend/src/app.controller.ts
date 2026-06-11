@@ -12,4 +12,10 @@ export class AppController {
   getHealth() {
     return this.appService.getHealth();
   }
+
+  @Get('health')
+  @ApiOperation({ summary: 'Render health check' })
+  getRenderHealth() {
+    return this.appService.getHealth();
+  }
 }

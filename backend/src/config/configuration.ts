@@ -3,7 +3,7 @@ export default () => ({
     url: process.env.DATABASE_URL,
   },
   jwt: {
-    secret: process.env.JWT_SECRET || 'fallback-secret',
+    secret: process.env.JWT_SECRET,
     expiresIn: '7d',
   },
   googleDrive: {
