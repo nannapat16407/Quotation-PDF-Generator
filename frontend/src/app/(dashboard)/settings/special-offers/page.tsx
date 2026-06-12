@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, GripVertical } from 'lucide-react';
+import { toast } from 'sonner';
 import type { SpecialOffer } from '@/types';
 import {
   SpecialOfferFormDialog,
@@ -64,10 +65,14 @@ export default function SpecialOffersPage() {
 
       if (editing) {
         await update({ id: editing.id, ...payload });
+        toast.success('Offer updated successfully.');
       } else {
         await create(payload);
+        toast.success('Offer created successfully.');
       }
       setDialogOpen(false);
+    } catch {
+      toast.error('Failed to save offer.');
     } finally {
       setSaving(false);
     }
@@ -75,7 +80,12 @@ export default function SpecialOffersPage() {
 
   const handleDelete = async () => {
     if (!deleteId) return;
-    await remove(deleteId);
+    try {
+      await remove(deleteId);
+      toast.success('Offer deleted successfully.');
+    } catch {
+      toast.error('Failed to delete offer.');
+    }
     setDeleteId(null);
   };
 

@@ -16,6 +16,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Trash2, ArrowLeft, Pencil, Upload, X, Loader2, AlertCircle, AlertTriangle } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -345,10 +346,14 @@ export default function CreateQuotationPage() {
       if (offerDialogMode === 'add') {
         const created = await createOffer(payload);
         setSelectedOfferIds((prev) => new Set(prev).add(created.id));
+        toast.success('Offer created successfully.');
       } else {
         await updateOffer({ id: offerDialogTargetId, ...payload });
+        toast.success('Offer updated successfully.');
       }
       setOfferDialogOpen(false);
+    } catch {
+      toast.error('Failed to save offer.');
     } finally {
       setSavingOffer(false);
     }
@@ -363,6 +368,9 @@ export default function CreateQuotationPage() {
         next.delete(deletingOfferId);
         return next;
       });
+      toast.success('Offer deleted successfully.');
+    } catch {
+      toast.error('Failed to delete offer.');
     } finally {
       setDeletingOfferId(null);
     }
@@ -430,7 +438,10 @@ export default function CreateQuotationPage() {
         })),
         offers: trimmedOffers,
       });
+      toast.success('Quotation created successfully.');
       router.push('/quotations');
+    } catch {
+      toast.error('Failed to create quotation. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -1015,13 +1026,27 @@ export default function CreateQuotationPage() {
 
       {/* Submit */}
       <div className="flex justify-end gap-3 pb-8">
-        <Button variant="outline" onClick={() => router.push('/quotations')}>
+        <Button variant="outline" onClick={() => router.push('/quotations')} disabled={saving}>
           Cancel
         </Button>
         <Button onClick={handleSubmit} disabled={saving}>
-          {saving ? 'Creating...' : 'Create Quotation'}
+          {saving && <Loader2 className="size-4 mr-2 animate-spin" />}
+          {saving ? 'Creating Quotation...' : 'Create Quotation'}
         </Button>
       </div>
+
+      {/* Full-page loading overlay */}
+      {saving && (
+        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="size-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <div className="text-center">
+              <p className="text-lg font-semibold">Generating quotation...</p>
+              <p className="text-sm text-muted-foreground mt-1">Preparing PDF and saving data</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -54,14 +54,14 @@ export function SpecialOfferFormDialog({
   const [form, setForm] = useState<SpecialOfferFormData>(initialData);
   const [errors, setErrors] = useState<{ name?: boolean; nameTh?: boolean }>({});
 
-  // Reset form when dialog opens with new data
-  const handleOpenChange = (open: boolean) => {
+  // Sync form state when dialog opens (handles programmatic open where
+  // Radix onOpenChange is not invoked)
+  useEffect(() => {
     if (open) {
       setForm(initialData);
       setErrors({});
     }
-    onOpenChange(open);
-  };
+  }, [open]);
 
   const handleSave = () => {
     const newErrors: { name?: boolean; nameTh?: boolean } = {};
@@ -75,7 +75,7 @@ export function SpecialOfferFormDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>

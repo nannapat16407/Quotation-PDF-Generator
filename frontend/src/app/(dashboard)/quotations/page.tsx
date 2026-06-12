@@ -34,7 +34,12 @@ export default function QuotationsPage() {
 
   const handleDelete = async () => {
     if (!deleteId) return;
-    await remove(deleteId);
+    try {
+      await remove(deleteId);
+      toast.success('Quotation deleted successfully.');
+    } catch {
+      toast.error('Failed to delete quotation.');
+    }
     setDeleteId(null);
   };
 
